@@ -51,6 +51,7 @@ import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
 import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.AudioInputMode
 import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
@@ -250,6 +251,7 @@ fun ChatViewWrapper(
   val context = LocalContext.current
   val task = modelManagerViewModel.getTaskById(id = taskId)!!
   val scope = rememberCoroutineScope()
+  val audioHistoryNotice = stringResource(R.string.audio_history_context_notice)
   var sessionRestoreJob by remember { mutableStateOf<Job?>(null) }
 
   ChatView(
@@ -282,7 +284,9 @@ fun ChatViewWrapper(
             modelManagerViewModel.addTextInputHistory(text)
           }
         }
-        val audioRequest = chatMessageText?.data as? AudioInputRequest
+        val audioRequest =
+          audioMessages.firstNotNullOfOrNull { it.audioInputRequest }
+            ?: (chatMessageText?.data as? AudioInputRequest)
         val inferenceInput =
           if (audioMessages.isNotEmpty() && audioRequest != null) {
             audioInputPrompt(audioRequest.mode, audioRequest.typedPrompt)
@@ -351,6 +355,15 @@ fun ChatViewWrapper(
     onRestoreSessionClicked = { session ->
       sessionRestoreJob?.cancel()
       val selectedModel = modelManagerViewModel.uiState.value.selectedModel
+      val hasSavedAudio = session.messagesList.any { it.messageType == "AUDIO_CLIP" }
+      val showAudioHistoryNotice = {
+        val restoredMessages = viewModel.uiState.value.messagesByModel[selectedModel.name].orEmpty()
+        if (hasSavedAudio && restoredMessages.none {
+            it is ChatMessageInfo && it.content == audioHistoryNotice
+          }) {
+          viewModel.addMessage(selectedModel, ChatMessageInfo(audioHistoryNotice))
+        }
+      }
       if (onResetSessionClickedOverride != null) {
         viewModel.stopResponse(model = selectedModel)
         viewModel.setIsResettingSession(true)
@@ -360,6 +373,7 @@ fun ChatViewWrapper(
             ensureActive()
             viewModel.currentSessionId = session.sessionId
             viewModel.setRestoredMessages(model = selectedModel, messages = messages)
+            showAudioHistoryNotice()
             onResetSessionClickedOverride(task, selectedModel, messages, /* clearHistory= */ false)
           } catch (e: CancellationException) {
             throw e
@@ -379,6 +393,7 @@ fun ChatViewWrapper(
           systemInstruction = curSystemPrompt,
           supportImage = showImagePicker,
           supportAudio = showAudioPicker,
+          onDone = showAudioHistoryNotice,
         )
       }
     },

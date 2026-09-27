@@ -17,7 +17,6 @@
 package com.google.ai.edge.gallery.ui.common.chat
 
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.ui.graphics.ImageBitmap
@@ -26,9 +25,6 @@ import androidx.compose.ui.unit.Dp
 import com.google.ai.edge.gallery.common.Classification
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.PromptTemplate
-import com.google.ai.edge.litertlm.Message
-
-private const val TAG = "AGChatMessage"
 
 enum class ChatMessageType {
   INFO,
@@ -190,6 +186,7 @@ class ChatMessageAudioClip(
    * Caches the local absolute file path to bypass redundant disk write I/O during session saves.
    */
   var persistedPath: String? = null,
+  val audioInputRequest: AudioInputRequest? = null,
 ) : ChatMessage(type = ChatMessageType.AUDIO_CLIP, side = side, latencyMs = latencyMs) {
   override fun clone(): ChatMessageAudioClip {
     return ChatMessageAudioClip(
@@ -198,6 +195,7 @@ class ChatMessageAudioClip(
       side = side,
       latencyMs = latencyMs,
       persistedPath = persistedPath,
+      audioInputRequest = audioInputRequest,
     )
   }
 
@@ -205,21 +203,21 @@ class ChatMessageAudioClip(
     val header = ByteArray(44)
 
     val pcmDataSize = audioData.size
-    val wavFileSize = pcmDataSize + 44 // 44 bytes for the header
+    // RIFF's chunk size excludes its own 8-byte identifier and size fields.
+    val riffChunkSize = pcmDataSize + 36
     val channels = 1 // Mono
     val bitsPerSample: Short = 16
     val byteRate = sampleRate * channels * bitsPerSample / 8
-    Log.d(TAG, "Wav metadata: sampleRate: $sampleRate")
 
     // RIFF/WAVE header
     header[0] = 'R'.code.toByte()
     header[1] = 'I'.code.toByte()
     header[2] = 'F'.code.toByte()
     header[3] = 'F'.code.toByte()
-    header[4] = (wavFileSize and 0xff).toByte()
-    header[5] = (wavFileSize shr 8 and 0xff).toByte()
-    header[6] = (wavFileSize shr 16 and 0xff).toByte()
-    header[7] = (wavFileSize shr 24 and 0xff).toByte()
+    header[4] = (riffChunkSize and 0xff).toByte()
+    header[5] = (riffChunkSize shr 8 and 0xff).toByte()
+    header[6] = (riffChunkSize shr 16 and 0xff).toByte()
+    header[7] = (riffChunkSize shr 24 and 0xff).toByte()
     header[8] = 'W'.code.toByte()
     header[9] = 'A'.code.toByte()
     header[10] = 'V'.code.toByte()
@@ -436,20 +434,4 @@ class ChatMessageThinking(
       accelerator = accelerator,
     )
   }
-}
-
-fun convertToLitertMessage(chatMessage: ChatMessage): Message? {
-  if (chatMessage is ChatMessageText) {
-    return when (chatMessage.side) {
-      ChatSide.USER -> {
-        val audioRequest = chatMessage.data as? AudioInputRequest
-        Message.user(
-          audioRequest?.let { audioInputPrompt(it.mode, it.typedPrompt) } ?: chatMessage.content
-        )
-      }
-      ChatSide.AGENT -> Message.model(chatMessage.content)
-      ChatSide.SYSTEM -> null
-    }
-  }
-  return null
 }

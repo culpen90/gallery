@@ -12,4 +12,5 @@
   <string name="audio_scribe_empty_recording">No audio was recorded. Please try again.</string>
   <string name="audio_scribe_stop_recording">Finish recording</string>
   <string name="audio_scribe_tap_to_record">Tap to record · up to 30 seconds</string>
+  <string name="audio_history_context_notice">Saved recordings are available to play, but the model cannot recall their audio after reopening a chat. Send a recording again if you want to discuss it.</string>
 </resources>

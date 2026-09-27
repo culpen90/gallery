@@ -29,8 +29,8 @@ import com.google.ai.edge.gallery.proto.ChatSideProto
 import com.google.ai.edge.gallery.runtime.CleanUpListener
 import com.google.ai.edge.gallery.runtime.ResultListener
 import com.google.ai.edge.gallery.runtime.runtimeHelper
-import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
-import com.google.ai.edge.gallery.ui.common.chat.restoreAudioInputRequest
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageMapper
+import com.google.ai.edge.gallery.ui.common.chat.convertToLitertMessages
 import com.google.ai.edge.litertlm.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
@@ -126,7 +126,8 @@ constructor(
       val session = allSessions.firstOrNull { it.sessionId == sessionId }
       val history = session?.messagesList ?: emptyList()
 
-      val litertMessages = history.mapNotNull { protoToLitertMessage(it) }
+      val litertMessages =
+        convertToLitertMessages(ChatMessageMapper.deserializeProtoMessages(history))
 
       ensureModelInitialized(config.model, "loadSession")
 
@@ -310,26 +311,4 @@ constructor(
         links.add(SessionFeedbackLink(feedbackId = feedbackId, messageIndex = messageIndex))
       }
     }
-
-  private fun protoToLitertMessage(proto: ChatMessageProto): Message? {
-    if (proto.messageType == "TEXT") {
-      return when (proto.side) {
-        ChatSideProto.CHAT_SIDE_USER -> {
-          val audioRequest =
-            restoreAudioInputRequest(
-              proto.audioInputMode,
-              proto.audioInputContext,
-            )
-          Message.user(
-            audioRequest?.let {
-              audioInputPrompt(it.mode, it.typedPrompt)
-            } ?: proto.content
-          )
-        }
-        ChatSideProto.CHAT_SIDE_MODEL -> Message.model(proto.content)
-        else -> null
-      }
-    }
-    return null
-  }
 }

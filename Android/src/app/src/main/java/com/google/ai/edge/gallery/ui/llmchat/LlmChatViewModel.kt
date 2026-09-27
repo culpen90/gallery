@@ -38,8 +38,8 @@ import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.awaitInitialization
 import com.google.ai.edge.gallery.proto.ChatSessionProto
 import com.google.ai.edge.gallery.tools.ToolAction
-import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
 import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageError
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageLoading
@@ -50,7 +50,8 @@ import com.google.ai.edge.gallery.ui.common.chat.ChatMessageType
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageWarning
 import com.google.ai.edge.gallery.ui.common.chat.ChatSide
 import com.google.ai.edge.gallery.ui.common.chat.ChatViewModel
-import com.google.ai.edge.gallery.ui.common.chat.convertToLitertMessage
+import com.google.ai.edge.gallery.ui.common.chat.convertToLitertMessages
+import com.google.ai.edge.gallery.ui.common.chat.historyBeforePendingUserTurn
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.Message
@@ -202,10 +203,13 @@ open class LlmChatViewModelBase(
       if (sessionStoppedByModel[model.name] == true) {
         sessionStoppedByModel[model.name] = false
         val initialMessages =
-          (uiState.value.messagesByModel[model.name] ?: emptyList())
-            .filterIsInstance<ChatMessageText>()
-            .dropLast(1)
-            .mapNotNull { convertToLitertMessage(it) }
+          convertToLitertMessages(
+            historyBeforePendingUserTurn(
+              messages = currentMessages,
+              audioClipCount = audioMessages.size,
+              hasImages = images.isNotEmpty(),
+            )
+          )
         val config =
           AgentRuntimeConfig(
             model = model,
@@ -470,7 +474,7 @@ open class LlmChatViewModelBase(
           currentSessionId = session.sessionId
           setRestoredMessages(model = model, messages = messages)
 
-          val litertMessages = messages.mapNotNull { convertToLitertMessage(it) }
+          val litertMessages = convertToLitertMessages(messages)
           executeResetSession(
             task = task,
             model = model,

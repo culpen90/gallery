@@ -194,8 +194,6 @@ fun MessageInputText(
   val audioPermissionDeniedMessage = stringResource(R.string.audio_scribe_permission_denied)
   val audioFileErrorMessage = stringResource(R.string.audio_scribe_file_error)
   val emptyAudioMessage = stringResource(R.string.audio_scribe_empty_recording)
-  val voiceInputLabel = stringResource(R.string.audio_scribe_talk)
-  val transcriptionInputLabel = stringResource(R.string.audio_scribe_transcribe)
   val lifecycleOwner = LocalLifecycleOwner.current
   val scope = rememberCoroutineScope()
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
@@ -843,9 +841,6 @@ fun MessageInputText(
                           audioClips = pickedAudioClips,
                           text = curMessage.trim(),
                           audioInputMode = if (unifiedInterface) audioInputMode else null,
-                          audioInputLabel =
-                            if (audioInputMode == AudioInputMode.VOICE_CHAT) voiceInputLabel
-                            else transcriptionInputLabel,
                         )
                       )
                       pickedImages = listOf()
@@ -911,9 +906,6 @@ fun MessageInputText(
             audioClips = pickedAudioClips,
             text = item,
             audioInputMode = if (unifiedInterface) audioInputMode else null,
-            audioInputLabel =
-              if (audioInputMode == AudioInputMode.VOICE_CHAT) voiceInputLabel
-              else transcriptionInputLabel,
           )
         )
         pickedImages = listOf()
@@ -1209,12 +1201,11 @@ private fun checkFrontCamera(context: Context, callback: (Boolean) -> Unit) {
   )
 }
 
-private fun createMessagesToSend(
+internal fun createMessagesToSend(
   pickedImages: List<Bitmap>,
   audioClips: List<AudioClip>,
   text: String,
   audioInputMode: AudioInputMode? = null,
-  audioInputLabel: String = "",
 ): List<ChatMessage> {
   val messages: MutableList<ChatMessage> = mutableListOf()
 
@@ -1243,6 +1234,7 @@ private fun createMessagesToSend(
           audioData = audioClip.audioData,
           sampleRate = audioClip.sampleRate,
           side = ChatSide.USER,
+          audioInputRequest = audioInputMode?.let { AudioInputRequest(it, text) },
         )
       )
     }
@@ -1253,15 +1245,7 @@ private fun createMessagesToSend(
   }
   messages.addAll(audioMessages)
 
-  if (audioMessages.isNotEmpty() && audioInputMode != null) {
-    messages.add(
-      ChatMessageText(
-        content = text.ifEmpty { audioInputLabel },
-        side = ChatSide.USER,
-        data = AudioInputRequest(audioInputMode, text),
-      )
-    )
-  } else if (text.isNotEmpty()) {
+  if (text.isNotBlank()) {
     messages.add(ChatMessageText(content = text, side = ChatSide.USER))
   }
 

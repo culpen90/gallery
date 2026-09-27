@@ -137,6 +137,8 @@ object ChatMessageMapper {
                 side = side,
                 latencyMs = protoMsg.latencyMs,
                 persistedPath = firstAudio.filePath,
+                audioInputRequest =
+                  restoreAudioInputRequest(protoMsg.audioInputMode, protoMsg.audioInputContext),
               )
             } catch (e: Exception) {
               Log.e(
@@ -170,7 +172,11 @@ object ChatMessageMapper {
     protoMessages: List<ChatMessageProto>,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
   ): List<ChatMessage> =
-    withContext(dispatcher) { protoMessages.mapNotNull { deserializeProtoMessage(it, dispatcher) } }
+    withContext(dispatcher) {
+      normalizeAudioInputMessages(
+        protoMessages.mapNotNull { deserializeProtoMessage(it, dispatcher) }
+      )
+    }
 
   /**
    * Serializes a single [ChatMessage] into a [ChatMessageProto] protobuf representation.
@@ -255,6 +261,9 @@ object ChatMessageMapper {
             .setMessageType("AUDIO_CLIP")
             .setSide(mapChatSide(msg.side))
             .setLatencyMs(msg.latencyMs)
+          msg.audioInputRequest?.let { request ->
+            builder.setAudioInputMode(request.mode.name).setAudioInputContext(request.typedPrompt)
+          }
           synchronized(msg) {
             val cachedPath = msg.persistedPath
             if (cachedPath != null) {

@@ -3,12 +3,71 @@ package com.google.ai.edge.gallery.ui.common.chat
 
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AudioHistoryTest {
+  @Test
+  fun savingAndRestoringRecordingKeepsSpeechAndIntentTogether() = runBlocking {
+    val pcm = byteArrayOf(0, 1, 2, 3)
+    val file = File.createTempFile("audio-history", ".pcm")
+    try {
+      file.writeBytes(pcm)
+      for (mode in AudioInputMode.entries) {
+        val request = AudioInputRequest(mode, "Answer in Spanish.")
+        val original = ChatMessageAudioClip(pcm, 16000, ChatSide.USER,
+          persistedPath = file.absolutePath, audioInputRequest = request)
+        val saved = checkNotNull(ChatMessageMapper.serializeMessage(original, "audio-test"))
+        val restored = ChatMessageMapper.deserializeProtoMessages(listOf(saved)).single() as ChatMessageAudioClip
+
+        assertArrayEquals(pcm, restored.audioData)
+        assertEquals(16000, restored.sampleRate)
+        assertEquals(request, restored.audioInputRequest)
+      }
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun oldAudioModeLabelIsRemovedAndItsIntentMovesToTheClip() {
+    val request = AudioInputRequest(AudioInputMode.VOICE_CHAT, "")
+    val clip = ChatMessageAudioClip(byteArrayOf(0, 1), 16000, ChatSide.USER)
+    val label = ChatMessageText("Talk to the model", ChatSide.USER, data = request)
+
+    val restored = normalizeAudioInputMessages(listOf(clip, label)).single() as ChatMessageAudioClip
+
+    assertEquals(request, restored.audioInputRequest)
+    assertArrayEquals(clip.audioData, restored.audioData)
+  }
+
+  @Test
+  fun oldAudioTurnPreservesWrittenContextOnce() {
+    val context = "A planning meeting"
+    val request = AudioInputRequest(AudioInputMode.TRANSCRIBE, context)
+    val clip = ChatMessageAudioClip(byteArrayOf(0, 1), 16000, ChatSide.USER)
+    val text = ChatMessageText(context, ChatSide.USER, data = request)
+
+    val restored = normalizeAudioInputMessages(listOf(clip, text))
+
+    assertEquals(2, restored.size)
+    assertEquals(request, (restored[0] as ChatMessageAudioClip).audioInputRequest)
+    assertEquals(context, (restored[1] as ChatMessageText).content)
+    assertNull((restored[1] as ChatMessageText).data)
+  }
+
+  @Test
+  fun missingRecordingNeverLeavesBehindAnInstructionToListenToIt() {
+    val label = ChatMessageText("Talk to the model", ChatSide.USER,
+      data = AudioInputRequest(AudioInputMode.VOICE_CHAT, ""))
+
+    assertEquals(emptyList<ChatMessage>(), normalizeAudioInputMessages(listOf(label)))
+  }
+
   @Test
   fun savingAndRestoringPreservesAudioIntentWithoutChangingVisibleText() = runBlocking {
     for (mode in AudioInputMode.entries) {

@@ -17,18 +17,21 @@
 package com.google.ai.edge.gallery.ui.common.chat
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AudioInputModeTest {
   @Test
-  fun voiceChatTreatsSpeechAsAConversationRequest() {
-    val prompt = audioInputPrompt(AudioInputMode.VOICE_CHAT, "")
+  fun voiceChatSendsTheRecordingWithoutAnInventedTextPrompt() {
+    assertEquals("", audioInputPrompt(AudioInputMode.VOICE_CHAT, ""))
+  }
 
-    assertTrue(prompt.contains("respond to what I say"))
-    assertTrue(prompt.contains("Use an available skill only if I ask"))
-    assertFalse(prompt.contains("Return only the transcript"))
+  @Test
+  fun voiceChatPreservesOnlyTheUsersWrittenContext() {
+    assertEquals(
+      "Answer in Spanish.",
+      audioInputPrompt(AudioInputMode.VOICE_CHAT, "  Answer in Spanish.  "),
+    )
   }
 
   @Test

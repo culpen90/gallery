@@ -1,8 +1,10 @@
-# Gallery Android — 1.0.0-beta.1
+# Gallery Android — 1.0.0-beta.2
 
-This is the first Android beta of the [culpen90/gallery fork](https://github.com/culpen90/gallery), built on [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Download the **[installable APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.1/gallery-1.0.0-beta.1.apk)** or read the **[beta release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.1)**. Android 12 or later is required.
+This is beta 2 of the [culpen90/gallery fork](https://github.com/culpen90/gallery), built on [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Download the **[installable APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.2/gallery-1.0.0-beta.2.apk)** or read the **[beta release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.2)**. Android 12 or later is required.
 
 Open the APK on your device and allow installation from your browser or file manager if Android asks. Choose or import a compatible on-device model after opening Gallery. This guide covers the fork's Android interface; upstream store releases, iOS, and macOS have their own interfaces and documentation.
+
+Beta 2 fixes audio submission and removes the generated “Talk to the model” chat bubble. Your recording and any text you actually enter are sent together.
 
 The app opens into one conversation. Type a message or tap the microphone to talk. The language model decides in the background whether to answer directly, load a relevant Agent Skill, or call a built-in phone control. There is no separate action mode to choose.
 
@@ -14,4 +16,12 @@ The app opens into one conversation. Type a message or tap the microphone to tal
 
 The existing model download, import, and on-device inference infrastructure is retained. A bundled catalog (from `model_allowlists/1_0_19.json`) provides model setup if the versioned online catalog and local cache are unavailable. Hugging Face OAuth is not configured in this beta, so gated model downloads require the configuration described in the [development notes](../DEVELOPMENT.md). Local model import remains available.
 
-Inference runs on the device; model downloads and network-connected skills or tools can use the internet. Voice input and physical phone actions still need broader device testing during this beta.
+## Audio behavior and limitations
+
+Voice chat was checked with Gemma-4-E2B-it on a Samsung Galaxy S25 Ultra: an imported recording and a live microphone recording both received answers to the spoken questions.
+
+Saved recordings remain available to play after reopening a chat. The current runtime cannot restore their audio into the model's conversation context, so the app shows a notice to send a recording again when you want to discuss it. Written conversation context is restored.
+
+Transcription remains model-dependent. With Gemma-4-E2B-it, a request to transcribe a spoken question can produce an answer to that question instead of the exact words. Transcription mode still disables tool execution.
+
+Inference runs on the device; model downloads and network-connected skills or tools can use the internet. Other models, devices, and physical phone actions need broader testing during this beta.

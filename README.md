@@ -1,11 +1,11 @@
 # Gallery — Android Beta
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Android beta](https://img.shields.io/badge/Android-1.0.0--beta.1-blue)](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.1)
+[![Android beta](https://img.shields.io/badge/Android-1.0.0--beta.2-blue)](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.2)
 
-This is an independent fork of [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Its first Android release, **1.0.0-beta.1**, brings chat, Agent Skills, phone controls, and Audio Scribe into one conversation. The language model decides in the background whether to reply directly, load a relevant skill, or use a supported phone control.
+This is an independent fork of [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). The Android beta brings chat, Agent Skills, phone controls, and Audio Scribe into one conversation. **1.0.0-beta.2** fixes voice input and removes the extra “Talk to the model” message from audio turns. The language model decides in the background whether to reply directly, load a relevant skill, or use a supported phone control.
 
-**[Download the Android beta APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.1/gallery-1.0.0-beta.1.apk)** · [Release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.1) · [Android guide](Android/README.md)
+**[Download the Android beta APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.2/gallery-1.0.0-beta.2.apk)** · [Release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.2) · [Android guide](Android/README.md)
 
 The beta requires Android 12 or later and a compatible on-device model. It is distributed from this repository's GitHub releases. The original app's store listings and screenshots below describe upstream releases.
 
@@ -14,14 +14,16 @@ The beta requires Android 12 or later and a compatible on-device model. It is di
 - **One conversation:** Start in chat, choose a model from the top bar, and find history, settings, and model management nearby.
 - **Automatic Agent Skills:** Enabled skills and connected tools remain available to compatible models. Manage them through the composer's **+** menu.
 - **Mobile Actions:** Ask for the flashlight, Maps, Wi-Fi settings, or contact, email, and calendar drafts. Android permissions still apply; drafts open in the phone's apps for you to review and complete.
-- **Audio Scribe:** Talk to an audio-capable model, record a transcript, or import a WAV file. Recordings support up to 30 seconds per message. Explicit transcription disables tool execution.
+- **Audio Scribe:** Talk to an audio-capable model, request a transcript, or import a WAV file. Recordings support up to 30 seconds per message. Explicit transcription disables tool execution.
 - **On-device models:** Download or import compatible models using the existing Gallery infrastructure. A bundled catalog keeps model setup available when the online catalog and cache cannot be loaded. Skills, phone controls, and audio depend on the selected model's capabilities.
+
+Voice chat has been checked on a physical phone with Gemma-4-E2B-it. Saved recordings remain playable after reopening a chat, but must be sent again for the model to hear them. Transcription with this model can answer a spoken question instead of transcribing it; see the [beta limitations](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.2).
 
 Inference runs on the device. Model downloads and network-connected skills or tools can use the internet. Hugging Face OAuth is not configured in this fork's beta, so gated downloads require configuration; see the [development notes](DEVELOPMENT.md). Local model import remains available.
 
 ## Install the Android beta
 
-1. Download [gallery-1.0.0-beta.1.apk](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.1/gallery-1.0.0-beta.1.apk) on an Android 12+ device.
+1. Download [gallery-1.0.0-beta.2.apk](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.2/gallery-1.0.0-beta.2.apk) on an Android 12+ device.
 2. Open the APK and allow installation from your browser or file manager when Android prompts you.
 3. Open Gallery and choose or import a compatible model. See the [Android guide](Android/README.md) for voice input, transcription, skills, and phone actions.
 

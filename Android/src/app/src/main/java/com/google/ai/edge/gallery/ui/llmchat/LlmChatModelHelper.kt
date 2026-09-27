@@ -378,8 +378,7 @@ object LlmChatModelHelper : LlmModelHelper {
       (extraContext ?: emptyMap()) + ("enable_thinking" to enableThinking)
 
     // Step 4: Dispatch asynchronous streaming inference to the native LiteRT-LM engine.
-    conversation.sendMessageAsync(
-      Contents.of(contents),
+    val callback =
       object : MessageCallback {
         override fun onMessage(message: Message) {
           val text = message.toString()
@@ -416,9 +415,10 @@ object LlmChatModelHelper : LlmModelHelper {
             onError("Error: ${throwable.message}")
           }
         }
-      },
-      finalExtraContext,
-    )
+      }
+    dispatchInference(callback) { messageCallback ->
+      conversation.sendMessageAsync(Contents.of(contents), messageCallback, finalExtraContext)
+    }
   }
 
   private fun Bitmap.toPngByteArray(): ByteArray {
