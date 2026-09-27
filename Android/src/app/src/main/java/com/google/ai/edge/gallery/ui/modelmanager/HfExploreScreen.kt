@@ -16,8 +16,6 @@
 
 package com.google.ai.edge.gallery.ui.modelmanager
 
-import androidx.hilt.navigation.compose.hiltViewModel
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +28,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Search
@@ -70,6 +71,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.ai.edge.gallery.GalleryTopAppBar
 import com.google.ai.edge.gallery.R
@@ -157,15 +159,26 @@ fun HfExploreContent(
     Box(
       modifier =
         Modifier.fillMaxSize()
-          .background(MaterialTheme.colorScheme.surfaceContainer)
+          .background(MaterialTheme.colorScheme.background)
           .padding(top = innerPadding.calculateTopPadding())
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+          modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Text("Discover what’s possible.", style = MaterialTheme.typography.headlineSmall)
+          Text(
+            "Explore community models on Hugging Face. Check compatibility before importing.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
         // Search field.
         OutlinedTextField(
           value = uiState.searchQuery,
           onValueChange = onSearchQueryChanged,
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
           placeholder = { Text(stringResource(R.string.hf_explore_search_placeholder)) },
           leadingIcon = { Icon(imageVector = Icons.Rounded.Search, contentDescription = null) },
           trailingIcon = {
@@ -189,7 +202,7 @@ fun HfExploreContent(
           modifier =
             Modifier.fillMaxWidth()
               .horizontalScroll(rememberScrollState())
-              .padding(horizontal = 16.dp, vertical = 4.dp),
+              .padding(horizontal = 20.dp, vertical = 4.dp),
           horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           for ((option, labelRes) in SORT_OPTIONS) {
@@ -197,6 +210,7 @@ fun HfExploreContent(
               selected = uiState.selectedSort == option,
               onClick = { onSortOptionSelected(option) },
               label = { Text(stringResource(labelRes)) },
+              modifier = Modifier.heightIn(min = 48.dp),
             )
           }
         }
@@ -286,7 +300,7 @@ private fun HfExploreModelList(
   LazyColumn(
     modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
     state = listState,
-    verticalArrangement = Arrangement.spacedBy(8.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
     contentPadding = contentPadding,
   ) {
     items(models, key = { it.id }) { model ->
@@ -309,27 +323,38 @@ private fun HfExploreModelCard(
   Card(
     onClick = onClick,
     modifier = modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(12.dp),
+    shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
   ) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-          text = model.modelName,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.SemiBold,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        if (authorName.isNotEmpty()) {
+    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text(
-            text = authorName,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = model.modelName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
           )
+          if (authorName.isNotEmpty()) {
+            Text(
+              text = authorName,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
         }
-      }
 
+        Icon(
+          Icons.AutoMirrored.Rounded.ArrowForward,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(20.dp),
+        )
+      }
       FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -337,13 +362,13 @@ private fun HfExploreModelCard(
         if (isRecommended) {
           Surface(
             color = MaterialTheme.colorScheme.primaryContainer,
-            shape = RoundedCornerShape(6.dp),
+            shape = RoundedCornerShape(8.dp),
           ) {
             Text(
               text = stringResource(R.string.hf_explore_recommended_badge),
               style = MaterialTheme.typography.labelSmall,
               color = MaterialTheme.colorScheme.onPrimaryContainer,
-              modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
             )
           }
         }
@@ -355,7 +380,7 @@ private fun HfExploreModelCard(
             } else {
               MaterialTheme.colorScheme.surfaceVariant
             },
-          shape = RoundedCornerShape(6.dp),
+          shape = RoundedCornerShape(8.dp),
         ) {
           Text(
             text =
@@ -373,7 +398,7 @@ private fun HfExploreModelCard(
               } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
               },
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
           )
         }
       }

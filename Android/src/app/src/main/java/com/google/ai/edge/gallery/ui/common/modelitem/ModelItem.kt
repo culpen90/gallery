@@ -20,6 +20,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -29,14 +30,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.rounded.UnfoldLess
-import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -64,7 +65,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatus
@@ -74,7 +74,6 @@ import com.google.ai.edge.gallery.ui.common.MarkdownText
 import com.google.ai.edge.gallery.ui.common.tos.TosViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.theme.bodyMediumMedium
-import com.google.ai.edge.gallery.ui.theme.customColors
 
 /**
  * Composable function to display a model item in the model manager list.
@@ -110,7 +109,7 @@ fun ModelItem(
   }
 
   val isBestOverall = model.bestForTaskIds.contains(task?.id ?: "")
-  var isExpanded by remember { mutableStateOf(expanded ?: isBestOverall) }
+  var isExpanded by remember(model.name) { mutableStateOf(expanded ?: isBestOverall) }
 
   val isDownloadFailed = downloadStatus?.status == ModelDownloadStatusType.FAILED
   val isAicore = model.isAiCore
@@ -118,8 +117,13 @@ fun ModelItem(
   var boxModifier =
     modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(size = 12.dp))
-      .background(color = MaterialTheme.customColors.taskCardBgColor)
+      .clip(RoundedCornerShape(size = 24.dp))
+      .background(color = MaterialTheme.colorScheme.surface)
+      .border(
+        1.dp,
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        RoundedCornerShape(24.dp),
+      )
   val expandedStateDesc =
     stringResource(if (isExpanded) R.string.cd_expanded else R.string.cd_collapsed)
   boxModifier =
@@ -148,7 +152,7 @@ fun ModelItem(
     }
 
   Box(modifier = boxModifier) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Box(
         modifier = Modifier.semantics { isTraversalGroup = true },
         contentAlignment = Alignment.CenterStart,
@@ -180,15 +184,15 @@ fun ModelItem(
                   model.downloadInfo.localRelativeDirPathOverride.isEmpty() &&
                   !isAicore,
               onBenchmarkClicked = { onBenchmarkClicked(model) },
-              modifier = Modifier.offset(y = (-12).dp),
+              modifier = Modifier.offset(y = (-8).dp),
             )
           }
-          if (!model.downloadInfo.imported) {
+          if (canExpand && !model.downloadInfo.imported) {
             Icon(
-              if (isExpanded) Icons.Rounded.UnfoldLess else Icons.Rounded.UnfoldMore,
+              if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
               contentDescription = null,
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.alpha(0.6f),
+              modifier = Modifier.size(24.dp),
             )
           }
         }
@@ -202,7 +206,7 @@ fun ModelItem(
                 model.info,
                 smallFontSize = true,
                 textColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 4.dp),
               )
             }
             if (isAicore && isDownloadFailed) {
@@ -339,7 +343,7 @@ fun ModelItem(
                           ),
                         animatedVisibilityScope = this,
                       )
-                      .clip(RoundedCornerShape(12.dp))
+                      .clip(RoundedCornerShape(18.dp))
                       .background(MaterialTheme.colorScheme.surfaceContainerLow)
                       .padding(vertical = 12.dp, horizontal = 16.dp)
 
@@ -424,14 +428,13 @@ fun ModelVariantHeader(
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Column(modifier = labelModifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier = labelModifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
       // Name.
       Text(
         text = variantModel.hierarchy.variantLabel ?: variantModel.name,
         style = bodyMediumMedium,
-        maxLines = 1,
+        maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 14.sp, stepSize = 1.sp),
       )
       // Status.
       ModelStatusDetails(
@@ -536,6 +539,6 @@ fun ModelItemActionMenu(
 fun calculateDownloadProgress(downloadStatus: ModelDownloadStatus?): Float {
   val receivedBytes = downloadStatus?.receivedBytes ?: 0L
   val totalBytes = downloadStatus?.totalBytes ?: 0L
-  if (totalBytes == 0L) return 0f
-  return receivedBytes.toFloat() / totalBytes.toFloat()
+  if (totalBytes <= 0L) return 0f
+  return (receivedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
 }

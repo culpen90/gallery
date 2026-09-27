@@ -16,44 +16,40 @@
 
 package com.google.ai.edge.gallery.ui.home
 
-import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import androidx.annotation.StringRes
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MultiChoiceSegmentedButtonRow
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,21 +57,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.proto.Theme
@@ -83,12 +73,7 @@ import com.google.ai.edge.gallery.ui.common.ClickableLink
 import com.google.ai.edge.gallery.ui.common.tos.AppTosDialog
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
-import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.min
+import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 
 private val THEME_OPTIONS = listOf(Theme.THEME_AUTO, Theme.THEME_LIGHT, Theme.THEME_DARK)
 
@@ -103,292 +88,217 @@ fun SettingsDialog(
   var selectedTheme by remember { mutableStateOf(curThemeOverride) }
   var selectedFirebaseAnalytics by remember { mutableStateOf(curFirebaseAnalytics) }
   var hfToken by remember { mutableStateOf(modelManagerViewModel.getTokenStatusAndData().data) }
-  val dateFormatter = remember {
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-      .withZone(ZoneId.systemDefault())
-      .withLocale(Locale.getDefault())
-  }
   var customHfToken by remember { mutableStateOf("") }
-  var isFocused by remember { mutableStateOf(false) }
-  val focusRequester = remember { FocusRequester() }
-  val interactionSource = remember { MutableInteractionSource() }
   var showTos by remember { mutableStateOf(false) }
+  val context = LocalContext.current
+  val focusManager = LocalFocusManager.current
+  val saveToken = {
+    if (customHfToken.isNotBlank()) {
+      modelManagerViewModel.saveAccessToken(
+        accessToken = customHfToken.trim(),
+        refreshToken = "",
+        expiresAt = System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 365 * 10,
+      )
+      hfToken = modelManagerViewModel.getTokenStatusAndData().data
+      customHfToken = ""
+      focusManager.clearFocus()
+    }
+  }
 
-  Dialog(onDismissRequest = onDismissed) {
-    val focusManager = LocalFocusManager.current
-    Card(
-      modifier =
-        Modifier.fillMaxWidth().clickable(
-          interactionSource = interactionSource,
-          indication = null, // Disable the ripple effect
-        ) {
-          focusManager.clearFocus()
-        },
-      shape = RoundedCornerShape(16.dp),
-    ) {
-      Column(
-        modifier = Modifier.padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-      ) {
-        // Dialog title and subtitle.
-        Column {
-          Text(
-            stringResource(R.string.drawer_settings_label),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(bottom = 8.dp),
-          )
-          // Subtitle.
-          Text(
-            "App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-            style = labelSmallNarrow,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.offset(y = (-6).dp),
-          )
+  ModalBottomSheet(
+    onDismissRequest = onDismissed,
+    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    containerColor = MaterialTheme.colorScheme.surface,
+  ) {
+    Column(modifier = Modifier.fillMaxWidth().imePadding().padding(horizontal = 24.dp)) {
+      Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+          stringResource(R.string.drawer_settings_label),
+          style = MaterialTheme.typography.headlineMedium,
+          modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDismissed) {
+          Icon(Icons.Rounded.Close, stringResource(R.string.cd_close_icon))
         }
-
-        Column(
-          modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false),
-          verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-          val context = LocalContext.current
-          // Theme switcher.
-          Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-            Text(
-              stringResource(R.string.theme_title),
-              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-            )
-            MultiChoiceSegmentedButtonRow {
-              THEME_OPTIONS.forEachIndexed { index, theme ->
-                SegmentedButton(
-                  shape =
-                    SegmentedButtonDefaults.itemShape(index = index, count = THEME_OPTIONS.size),
-                  onCheckedChange = {
-                    selectedTheme = theme
-
-                    // Update theme settings.
-                    // This will update app's theme.
-                    ThemeSettings.themeOverride.value = theme
-
-                    // Save to data store.
-                    modelManagerViewModel.saveThemeOverride(theme)
-
-                    // Update ui mode.
-                    //
-                    // This is necessary to make other Activities launched from MainActivity to have
-                    // the correct theme.
-                    val uiModeManager =
-                      context.applicationContext.getSystemService(Context.UI_MODE_SERVICE)
-                        as UiModeManager
-                    if (theme == Theme.THEME_AUTO) {
-                      uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)
-                    } else if (theme == Theme.THEME_LIGHT) {
-                      uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_NO)
-                    } else {
-                      uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_YES)
+      }
+      Text(
+        stringResource(R.string.redesign_settings_subtitle),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
+      )
+      Column(
+        modifier =
+          Modifier.weight(1f, fill = false)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+      ) {
+        SettingsSection(stringResource(R.string.redesign_appearance)) {
+          Text(stringResource(R.string.theme_title), style = MaterialTheme.typography.titleSmall)
+          SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            THEME_OPTIONS.forEachIndexed { index, theme ->
+              SegmentedButton(
+                selected = theme == selectedTheme,
+                shape =
+                  SegmentedButtonDefaults.itemShape(index = index, count = THEME_OPTIONS.size),
+                onClick = {
+                  selectedTheme = theme
+                  ThemeSettings.themeOverride.value = theme
+                  modelManagerViewModel.saveThemeOverride(theme)
+                  val uiModeManager =
+                    context.applicationContext.getSystemService(Context.UI_MODE_SERVICE)
+                      as UiModeManager
+                  uiModeManager.setApplicationNightMode(
+                    when (theme) {
+                      Theme.THEME_LIGHT -> UiModeManager.MODE_NIGHT_NO
+                      Theme.THEME_DARK -> UiModeManager.MODE_NIGHT_YES
+                      else -> UiModeManager.MODE_NIGHT_AUTO
                     }
-                  },
-                  checked = theme == selectedTheme,
-                  label = {
-                    Text(
-                      stringResource(themeLabelRes(theme)),
-                      maxLines = 1,
-                      overflow = TextOverflow.Ellipsis,
-                      softWrap = false,
-                    )
-                  },
-                )
-              }
+                  )
+                },
+                label = { Text(stringResource(themeLabelRes(theme))) },
+              )
             }
           }
-
-            Row(
-              modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-              Column(
-                modifier = Modifier.weight(1f).padding(end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-              ) {
-                Text(
-                  stringResource(R.string.settings_dialog_firebase_analytics_title),
-                  style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-                )
-                Text(
-                  stringResource(R.string.settings_dialog_firebase_analytics_description),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-              Switch(
-                checked = selectedFirebaseAnalytics,
-                onCheckedChange = { checked ->
-                  selectedFirebaseAnalytics = checked
-                  modelManagerViewModel.saveFirebaseAnalytics(checked)
-                },
-              )
-            }
-
-          // HF Token management.
-          Column(
-            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        }
+        SettingsSection(stringResource(R.string.redesign_privacy)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
           ) {
-            Text(
-              "HuggingFace access token",
-              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-            )
-            // Show the start of the token.
-            val curHfToken = hfToken
-            if (curHfToken != null && curHfToken.accessToken.isNotEmpty()) {
+            Column(
+              modifier = Modifier.weight(1f),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
               Text(
-                curHfToken.accessToken.substring(0, min(16, curHfToken.accessToken.length)) + "...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                stringResource(R.string.settings_dialog_firebase_analytics_title),
+                style = MaterialTheme.typography.titleSmall,
               )
               Text(
-                "Expires at: ${dateFormatter.format(Instant.ofEpochMilli(curHfToken.expiresAtMs))}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            } else {
-              Text(
-                "Not available",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-              Text(
-                "The token will be automatically retrieved when a gated model is downloaded",
+                stringResource(R.string.settings_dialog_firebase_analytics_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-              OutlinedButton(
-                onClick = {
-                  modelManagerViewModel.clearAccessToken()
-                  hfToken = null
-                },
-                enabled = curHfToken != null,
-              ) {
-                Text("Clear")
-              }
-              val handleSaveToken = {
-                modelManagerViewModel.saveAccessToken(
-                  accessToken = customHfToken,
-                  refreshToken = "",
-                  expiresAt = System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 365 * 10,
-                )
-                hfToken = modelManagerViewModel.getTokenStatusAndData().data
-                focusManager.clearFocus()
-              }
-              BasicTextField(
-                value = customHfToken,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { handleSaveToken() }),
-                modifier =
-                  Modifier.fillMaxWidth()
-                    .padding(top = 4.dp)
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { isFocused = it.isFocused },
-                onValueChange = { customHfToken = it },
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-              ) { innerTextField ->
-                Box(
-                  modifier =
-                    Modifier.border(
-                        width = if (isFocused) 2.dp else 1.dp,
-                        color =
-                          if (isFocused) MaterialTheme.colorScheme.primary
-                          else MaterialTheme.colorScheme.outline,
-                        shape = CircleShape,
-                      )
-                      .height(40.dp),
-                  contentAlignment = Alignment.CenterStart,
-                ) {
-                  Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                      if (customHfToken.isEmpty()) {
-                        Text(
-                          "Enter token manually",
-                          color = MaterialTheme.colorScheme.onSurfaceVariant,
-                          style = MaterialTheme.typography.bodySmall,
-                        )
-                      }
-                      innerTextField()
-                    }
-                    if (customHfToken.isNotEmpty()) {
-                      IconButton(modifier = Modifier.offset(x = 1.dp), onClick = handleSaveToken) {
-                        Icon(
-                          Icons.Rounded.CheckCircle,
-                          contentDescription = stringResource(R.string.cd_done_icon),
-                        )
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // Third party licenses.
-          Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-            Text(
-              stringResource(R.string.third_party_libraries),
-              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+            val analyticsLabel = stringResource(R.string.settings_dialog_firebase_analytics_title)
+            Switch(
+              modifier = Modifier.semantics { contentDescription = analyticsLabel },
+              checked = selectedFirebaseAnalytics,
+              onCheckedChange = {
+                selectedFirebaseAnalytics = it
+                modelManagerViewModel.saveFirebaseAnalytics(it)
+              },
             )
-            OutlinedButton(
+          }
+          Text(
+            stringResource(R.string.redesign_local_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        SettingsSection(stringResource(R.string.redesign_connections)) {
+          Text(
+            stringResource(R.string.redesign_token_title),
+            style = MaterialTheme.typography.titleMedium,
+          )
+          Text(
+            stringResource(R.string.redesign_token_detail),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          val hasToken = hfToken?.accessToken?.isNotEmpty() == true
+          Text(
+            stringResource(
+              if (hasToken) R.string.redesign_token_connected else R.string.redesign_token_none
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color =
+              if (hasToken) MaterialTheme.colorScheme.primary
+              else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          OutlinedTextField(
+            value = customHfToken,
+            onValueChange = { customHfToken = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.redesign_token_input)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { saveToken() }),
+            shape = RoundedCornerShape(16.dp),
+          )
+          Button(
+            onClick = saveToken,
+            enabled = customHfToken.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+          ) {
+            Text(stringResource(R.string.redesign_save_token))
+          }
+          if (hasToken) {
+            TextButton(
               onClick = {
-                // Create an Intent to launch a license viewer that displays a list of
-                // third-party library names. Clicking a name will show its license content.
-                val intent = Intent(context, OssLicensesMenuActivity::class.java)
-                context.startActivity(intent)
+                modelManagerViewModel.clearAccessToken()
+                hfToken = null
               }
             ) {
-              Text(stringResource(R.string.view_licenses))
+              Text(stringResource(R.string.redesign_remove_token))
             }
-          }
-
-          // Tos
-          Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-            Text(
-              stringResource(R.string.settings_dialog_tos_title),
-              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-            )
-            OutlinedButton(onClick = { showTos = true }) {
-              Text(stringResource(R.string.settings_dialog_view_app_terms_of_service))
-            }
-            ClickableLink(
-              url = "https://ai.google.dev/gemma/terms",
-              linkText = stringResource(R.string.tos_dialog_title_gemma),
-              textAlign = TextAlign.Start,
-              modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
-            ClickableLink(
-              url = "https://ai.google.dev/gemma/prohibited_use_policy",
-              linkText = stringResource(R.string.settings_dialog_gemma_prohibited_use_policy),
-              textAlign = TextAlign.Start,
-              modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            )
           }
         }
-
-        // Button row.
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-          horizontalArrangement = Arrangement.End,
-        ) {
-          // Close button
-          Button(onClick = { onDismissed() }) { Text(stringResource(R.string.close)) }
+        SettingsSection(stringResource(R.string.redesign_about)) {
+          Text("Gallery ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium)
+          TextButton(
+            onClick = {
+              context.startActivity(Intent(context, OssLicensesMenuActivity::class.java))
+            }
+          ) {
+            Text(stringResource(R.string.view_licenses))
+          }
+          TextButton(onClick = { showTos = true }) {
+            Text(stringResource(R.string.settings_dialog_view_app_terms_of_service))
+          }
+          ClickableLink(
+            url = "https://ai.google.dev/gemma/terms",
+            linkText = stringResource(R.string.tos_dialog_title_gemma),
+            textAlign = TextAlign.Start,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+          )
+          ClickableLink(
+            url = "https://ai.google.dev/gemma/prohibited_use_policy",
+            linkText = stringResource(R.string.settings_dialog_gemma_prohibited_use_policy),
+            textAlign = TextAlign.Start,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+          )
         }
       }
     }
   }
-
   if (showTos) {
     AppTosDialog(onTosAccepted = { showTos = false }, viewingMode = true)
+  }
+}
+
+@Composable
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Text(
+      title,
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.padding(start = 4.dp),
+    )
+    Surface(
+      shape = RoundedCornerShape(24.dp),
+      color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        content = content,
+      )
+    }
   }
 }
 

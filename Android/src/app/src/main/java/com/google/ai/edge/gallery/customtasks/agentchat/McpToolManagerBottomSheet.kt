@@ -19,13 +19,14 @@ package com.google.ai.edge.gallery.customtasks.agentchat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,14 +59,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.proto.McpTool
-import com.google.ai.edge.gallery.ui.common.SmallFilledTonalButton
-import com.google.ai.edge.gallery.ui.common.SmallOutlinedButton
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -92,9 +94,9 @@ fun McpToolManagerBottomSheet(
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor = MaterialTheme.colorScheme.background,
   ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).fillMaxSize()) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp).fillMaxSize()) {
       // Title Row
       Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
@@ -102,7 +104,7 @@ fun McpToolManagerBottomSheet(
       ) {
         Text(
           text = stringResource(R.string.manage_tools),
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.headlineSmall,
           modifier = Modifier.weight(1f),
         )
         IconButton(
@@ -127,10 +129,10 @@ fun McpToolManagerBottomSheet(
         modifier = Modifier.padding(bottom = 8.dp),
       )
 
-      // Tool Count and Action Row
-      Row(
+      // Actions wrap to remain reachable with larger text.
+      FlowRow(
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
       ) {
         val toolsCount = server.toolsList.size
@@ -139,7 +141,7 @@ fun McpToolManagerBottomSheet(
           style = MaterialTheme.typography.labelLarge,
         )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
           TextButton(onClick = { mcpManagerViewModel.setAllMcpToolsEnabled(server.url, true) }) {
             Text(stringResource(R.string.turn_on_all))
           }
@@ -158,9 +160,9 @@ fun McpToolManagerBottomSheet(
           Row(
             modifier =
               Modifier.fillMaxWidth()
-                .clip(shape = RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .clip(shape = RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -176,7 +178,8 @@ fun McpToolManagerBottomSheet(
                 ) {
                   Text(
                     text = tool.name,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    style =
+                      MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                   )
                   if (tool.description.isNotEmpty()) {
                     Text(
@@ -193,27 +196,40 @@ fun McpToolManagerBottomSheet(
                   onCheckedChange = { enabled ->
                     mcpManagerViewModel.setMcpToolEnabled(server.url, tool.name, enabled)
                   },
-                  modifier = Modifier.offset(y = (-4).dp),
+                  modifier =
+                    Modifier.offset(y = (-4).dp).semantics {
+                      contentDescription = "Toggle ${tool.name}"
+                    },
                 )
               }
 
               // Action buttons for viewing schema and revoking "always allow"
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start,
-                modifier = Modifier.padding(top = 8.dp),
+              FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(top = 12.dp),
               ) {
-                SmallFilledTonalButton(
+                FilledTonalButton(
                   onClick = { toolToView = tool },
-                  labelResId = R.string.view,
-                  imageVector = Icons.Outlined.RemoveRedEye,
-                )
-                if (tool.alwaysAllow) {
-                  Spacer(modifier = Modifier.width(8.dp))
-                  SmallOutlinedButton(
-                    onClick = { toolToRevoke = tool },
-                    labelResId = R.string.mcp_tool_revoke_permission,
+                  modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                  Icon(
+                    Icons.Outlined.RemoveRedEye,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
                   )
+                  Text(
+                    stringResource(R.string.support_skill_details),
+                    modifier = Modifier.padding(start = 8.dp),
+                  )
+                }
+                if (tool.alwaysAllow) {
+                  TextButton(
+                    onClick = { toolToRevoke = tool },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                  ) {
+                    Text(stringResource(R.string.mcp_tool_revoke_permission))
+                  }
                 }
               }
             }

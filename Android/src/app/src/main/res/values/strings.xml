@@ -185,8 +185,8 @@
   <string name="settings_dialog_tos_title" translatable="true" description="Header for the Terms of Service section in the Settings dialog. [CHAR_LIMIT=30]">Terms of service</string>
   <string name="settings_dialog_view_app_terms_of_service" translatable="true" description="Button label to open and read the application's terms of service. [CHAR_LIMIT=30]">View App Terms of Service</string>
   <string name="settings_dialog_gemma_prohibited_use_policy" translatable="true" description="Link text pointing to the Gemma model's prohibited use policy document. [CHAR_LIMIT=44]">Gemma Prohibited Use Policy</string>
-  <string name="settings_dialog_firebase_analytics_title" translatable="true" description="Title for the settings toggle control to opt-in/out of analytics tracking. [CHAR_LIMIT=31]">Firebase Analytics</string>
-  <string name="settings_dialog_firebase_analytics_description" translatable="true" description="Description for the Firebase Analytics toggle explaining that it helps improve the app. [CHAR_LIMIT=90]">Send usage data to help improve AI Edge Gallery</string>
+  <string name="settings_dialog_firebase_analytics_title" translatable="true" description="Title for the settings toggle control to opt-in/out of analytics tracking. [CHAR_LIMIT=31]">Usage analytics</string>
+  <string name="settings_dialog_firebase_analytics_description" translatable="true" description="Description for the Firebase Analytics toggle explaining that it helps improve the app. [CHAR_LIMIT=90]">Share usage data to help improve Gallery.</string>
   <string name="share" translatable="true" description="Button label to share content (images, text) via other apps. [CHAR_LIMIT=9]">Share</string>
   <string name="slide_up_to_cancel" translatable="true" description="Instruction text telling the user they can slide their finger up to cancel voice recording. [CHAR_LIMIT=31]">Slide up to cancel</string>
   <string name="system_prompt_placeholder" translatable="true" description="Placeholder hint text inside the system prompt editor text field showing example instructions. [CHAR_LIMIT=170]">Enter system instructions (e.g., \"You are a versatile assistant. Provide accurate, context-aware responses in a professional tone.\")</string>
@@ -426,7 +426,7 @@
   <string name="use_call_js_template" translatable="true" description="Button label to pre-fill the instructions field with a template for calling JavaScript code. [CHAR_LIMIT=30]">Use Call JS template</string>
 
   <!-- Strings for MCP -->
-  <string name="mcp" translatable="true" description="Label for the button that opens the Model Context Protocol (MCP) manager. [CHAR_LIMIT=18]">MCP</string>
+  <string name="mcp" translatable="true" description="Label for the button that opens the Model Context Protocol (MCP) manager. [CHAR_LIMIT=18]">Connected tools</string>
   <string name="mcp_tool_call_permission_title" translatable="true" description="Title of the dialog asking the user for permission to execute an MCP tool. [CHAR_LIMIT=45]">Permission to call MCP tool?</string>
   <string name="mcp_tool_name_label" translatable="true" description="Label prefixing the name of the tool requesting execution permission. [CHAR_LIMIT=18]">Tool name</string>
   <string name="mcp_tool_input_label" translatable="true" description="Label prefixing the input arguments being passed to the tool. [CHAR_LIMIT=18]">Input</string>
@@ -477,7 +477,7 @@
   <!-- Displayed to clear all current chat history items from the list. -->
   <string name="clear_all" translatable="true" description="Button label to clear all chat history. [CHAR_LIMIT=18]">Clear all</string>
   <!-- Displayed as a persistent notice at the bottom of the side bar regarding demo usage. -->
-  <string name="chat_history_demo_notice" translatable="true" description="Informational message stating that chat history is temporary and not saved permanently. [CHAR_LIMIT=75]">Chat history does not persist across demos.</string>
+  <string name="chat_history_demo_notice" translatable="true" description="Explains where saved conversations are stored. [CHAR_LIMIT=75]">Your conversations are saved on this device.</string>
   <!-- Title for warning dialog before clearing chat history. -->
   <string name="clear_history_dialog_title" translatable="true" description="Title of the confirmation dialog when clearing chat history. [CHAR_LIMIT=26]">Clear history?</string>
   <!-- Content descriptive text for the clear history warning dialog. -->

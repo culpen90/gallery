@@ -19,7 +19,9 @@ package com.google.ai.edge.gallery.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -33,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.google.ai.edge.gallery.proto.Theme
 
@@ -187,9 +190,9 @@ val lightCustomColors =
       ),
     taskIconShapeBgColor = Color.White,
     homeBottomGradient = listOf(Color(0x00F8F9FF), Color(0xffFFEFC9)),
-    agentBubbleBgColor = Color(0xFFe9eef6),
-    userBubbleBgColor = Color(0xFF32628D),
-    linkColor = Color(0xFF32628D),
+    agentBubbleBgColor = surfaceContainerLowLight,
+    userBubbleBgColor = primaryLight,
+    linkColor = primaryLight,
     successColor = Color(0xff3d860b),
     positiveStrokeColor = Color(0xff3d860b),
     negativeStrokeColor = Color(0xffd93025),
@@ -198,7 +201,7 @@ val lightCustomColors =
     waveFormBgColor = Color(0xFFaaaaaa),
     modelInfoIconColor = Color(0xFFCCCCCC),
     warningContainerColor = Color(0xfffef7e0),
-    warningTextColor = Color(0xffe37400),
+    warningTextColor = Color(0xFF805100),
     errorContainerColor = Color(0xfffce8e6),
     errorTextColor = Color(0xffd93025),
     newFeatureContainerColor = Color(0xFFEEDCFE),
@@ -268,9 +271,9 @@ val darkCustomColors =
       ),
     taskIconShapeBgColor = Color(0xFF202124),
     homeBottomGradient = listOf(Color(0x00F8F9FF), Color(0x1AF6AD01)),
-    agentBubbleBgColor = Color(0xFF1b1c1d),
-    userBubbleBgColor = Color(0xFF1f3760),
-    linkColor = Color(0xFF9DCAFC),
+    agentBubbleBgColor = surfaceContainerLowDark,
+    userBubbleBgColor = primaryContainerDark,
+    linkColor = primaryDark,
     successColor = Color(0xFFA1CE83),
     positiveStrokeColor = Color(0xff3d860b),
     negativeStrokeColor = Color(0xffd93025),
@@ -320,7 +323,8 @@ fun StatusBarColorController(useDarkTheme: Boolean) {
     SideEffect {
       WindowCompat.setDecorFitsSystemWindows(currentWindow, false)
       val controller = WindowCompat.getInsetsController(currentWindow, view)
-      controller.isAppearanceLightStatusBars = !useDarkTheme // Set to true for light icons
+      controller.isAppearanceLightStatusBars = !useDarkTheme
+      controller.isAppearanceLightNavigationBars = !useDarkTheme
     }
   }
 }
@@ -344,7 +348,19 @@ fun GalleryTheme(content: @Composable () -> Unit) {
   val customColorsPalette = if (darkTheme) darkCustomColors else lightCustomColors
 
   CompositionLocalProvider(LocalCustomColors provides customColorsPalette) {
-    MaterialTheme(colorScheme = colorScheme, typography = AppTypography, content = content)
+    MaterialTheme(
+      colorScheme = colorScheme,
+      typography = AppTypography,
+      shapes =
+        Shapes(
+          extraSmall = RoundedCornerShape(8.dp),
+          small = RoundedCornerShape(12.dp),
+          medium = RoundedCornerShape(20.dp),
+          large = RoundedCornerShape(24.dp),
+          extraLarge = RoundedCornerShape(28.dp),
+        ),
+      content = content,
+    )
   }
 
   // Make sure the navigation bar stays transparent on manual theme changes.

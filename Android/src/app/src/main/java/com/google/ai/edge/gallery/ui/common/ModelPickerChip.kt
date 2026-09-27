@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -51,8 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -78,9 +77,6 @@ fun ModelPickerChip(
   var modelPickerModel by remember { mutableStateOf<Model?>(null) }
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val density = LocalDensity.current
-  val windowInfo = LocalWindowInfo.current
-  val screenWidthDp = remember { with(density) { windowInfo.containerSize.width.toDp() } }
 
   val initStatus by initialModel.initStatusFlow.collectAsState()
 
@@ -95,14 +91,15 @@ fun ModelPickerChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         modifier =
-          Modifier.clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+          Modifier.widthIn(max = 400.dp)
+            .heightIn(min = 48.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(enabled = enabled) {
               modelPickerModel = initialModel
               showModelPicker = true
             }
-            .padding(start = 8.dp, end = 2.dp)
-            .padding(vertical = 4.dp)
+            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
             .graphicsLayer { alpha = if (enabled) 1f else 0.6f }
             .semantics { contentDescription = cdChangeModel },
       ) Inner@{
@@ -127,10 +124,10 @@ fun ModelPickerChip(
         }
         Text(
           modelName,
-          style = MaterialTheme.typography.labelLarge,
+          style = MaterialTheme.typography.titleSmall,
           modifier =
-            Modifier.padding(start = 4.dp)
-              .widthIn(0.dp, screenWidthDp - 250.dp)
+            Modifier.weight(1f, fill = false)
+              .padding(start = 8.dp, end = 6.dp)
               .clearAndSetSemantics {},
           maxLines = 1,
           overflow = TextOverflow.MiddleEllipsis,

@@ -18,24 +18,22 @@ package com.google.ai.edge.gallery.ui.common.tos
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.ai.edge.gallery.R
@@ -49,25 +47,24 @@ fun AppTosDialog(onTosAccepted: () -> Unit, viewingMode: Boolean = false) {
     properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
     onDismissRequest = { if (viewingMode) onTosAccepted() },
   ) {
-    Card(shape = RoundedCornerShape(28.dp)) {
+    Card(
+      shape = RoundedCornerShape(28.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
       Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         // Title.
-        val titleColor = MaterialTheme.colorScheme.onSurface
-        BasicText(
+        Text(
           stringResource(R.string.tos_dialog_title_app),
           modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-          style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
-          color = { titleColor },
-          maxLines = 1,
-          autoSize =
-            TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 24.sp, stepSize = 1.sp),
+          style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.onSurface,
         )
 
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false)) {
           // Short content.
           MarkdownText(
             stringResource(R.string.tos_dialog_body),
-            smallFontSize = true,
+            smallFontSize = false,
             textColor = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 16.dp),
           )
@@ -76,7 +73,8 @@ fun AppTosDialog(onTosAccepted: () -> Unit, viewingMode: Boolean = false) {
         // Accept button.
         Button(
           onClick = onTosAccepted,
-          modifier = Modifier.padding(top = 28.dp, bottom = 24.dp).align(Alignment.End),
+          modifier =
+            Modifier.padding(top = 24.dp, bottom = 24.dp).fillMaxWidth().heightIn(min = 52.dp),
         ) {
           Text(
             stringResource(

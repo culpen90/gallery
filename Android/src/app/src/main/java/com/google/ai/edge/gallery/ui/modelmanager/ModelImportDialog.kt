@@ -179,16 +179,16 @@ fun ModelImportDialog(
         ) {
           focusManager.clearFocus()
         },
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(28.dp),
     ) {
       Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Title.
         Text(
           stringResource(R.string.import_model),
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.headlineSmall,
           modifier = Modifier.padding(bottom = 8.dp),
         )
 
@@ -276,15 +276,15 @@ fun ModelImportingDialog(
     properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
     onDismissRequest = onDismiss,
   ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
       Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Title.
         Text(
           stringResource(R.string.import_model),
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.headlineSmall,
           modifier = Modifier.padding(bottom = 8.dp),
         )
 

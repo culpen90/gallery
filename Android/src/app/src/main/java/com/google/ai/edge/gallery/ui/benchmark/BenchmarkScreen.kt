@@ -25,15 +25,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -41,14 +41,16 @@ import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -180,23 +182,15 @@ fun BenchmarkScreen(
   Box(modifier = Modifier.fillMaxSize()) {
     // Benchmark configs.
     Scaffold(
+      containerColor = MaterialTheme.colorScheme.background,
       topBar = {
-        CenterAlignedTopAppBar(
+        TopAppBar(
           // Title icon and label.
           title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              Text(
-                stringResource(R.string.benchmark_model),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-              )
-              BenchmarkModelPicker(
-                selectedModelName = selectedModelName,
-                modelNames = downloadedLlmModelNames,
-                titleResId = R.string.select_downloaded_model,
-                onSelected = { selectedModelName = it },
-              )
-            }
+            Text(
+              stringResource(R.string.benchmark_model),
+              style = MaterialTheme.typography.titleLarge,
+            )
           },
           // The back button.
           navigationIcon = {
@@ -207,21 +201,49 @@ fun BenchmarkScreen(
               )
             }
           },
-          actions = { Spacer(modifier = Modifier.size(48.dp)) },
+          colors =
+            TopAppBarDefaults.topAppBarColors(
+              containerColor = MaterialTheme.colorScheme.background
+            ),
         )
       },
-      modifier = Modifier.imePadding(),
+      modifier = modifier.imePadding(),
     ) { innerPadding ->
       Box(
         modifier = Modifier.padding(innerPadding).fillMaxSize(),
         contentAlignment = Alignment.TopCenter,
       ) {
-        Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxSize()) {
           // Config items.
           Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(24.dp),
           ) {
+            Text(
+              stringResource(R.string.support_benchmark_description),
+              style = MaterialTheme.typography.bodyLarge,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+              color = MaterialTheme.colorScheme.surfaceContainerLow,
+              shape = RoundedCornerShape(24.dp),
+            ) {
+              Column(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+              ) {
+                Text(
+                  stringResource(R.string.support_benchmark_model_label),
+                  style = MaterialTheme.typography.titleSmall,
+                )
+                BenchmarkModelPicker(
+                  selectedModelName = selectedModelName,
+                  modelNames = downloadedLlmModelNames,
+                  titleResId = R.string.select_downloaded_model,
+                  onSelected = { selectedModelName = it },
+                )
+              }
+            }
             ConfigEditorsPanel(configs = configs, values = values)
 
             // Info text on the limit of the sum of prefill and decode tokens.
@@ -240,10 +262,9 @@ fun BenchmarkScreen(
           }
 
           // Buttons.
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+          Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
           ) {
             // View results.
             OutlinedButton(
@@ -258,7 +279,7 @@ fun BenchmarkScreen(
                   },
                 )
               },
-              modifier = Modifier.weight(1f),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             ) {
               Icon(Icons.AutoMirrored.Rounded.List, contentDescription = null)
               Spacer(modifier = Modifier.width(4.dp))
@@ -272,7 +293,7 @@ fun BenchmarkScreen(
                   showRunBenchmarkConfirmationDialog = true
                 }
               },
-              modifier = Modifier.weight(1f),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             ) {
               Icon(Icons.Rounded.BarChart, contentDescription = null)
               Spacer(modifier = Modifier.width(4.dp))

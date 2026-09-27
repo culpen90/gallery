@@ -16,38 +16,72 @@
 
 package com.google.ai.edge.gallery.ui.theme
 
-import androidx.compose.ui.text.font.Font
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.google.ai.edge.gallery.R
 
-val appFontFamily =
-  FontFamily(
-    Font(R.font.nunito_regular, FontWeight.Normal),
-    Font(R.font.nunito_extralight, FontWeight.ExtraLight),
-    Font(R.font.nunito_light, FontWeight.Light),
-    Font(R.font.nunito_medium, FontWeight.Medium),
-    Font(R.font.nunito_semibold, FontWeight.SemiBold),
-    Font(R.font.nunito_bold, FontWeight.Bold),
-    Font(R.font.nunito_extrabold, FontWeight.ExtraBold),
-    Font(R.font.nunito_black, FontWeight.Black),
-  )
+// Android system type keeps reading crisp and follows the user’s font settings.
+val appFontFamily = FontFamily.SansSerif
 
 val baseline = Typography()
 
 val AppTypography =
   Typography(
-    displayLarge = baseline.displayLarge.copy(fontFamily = appFontFamily),
-    displayMedium = baseline.displayMedium.copy(fontFamily = appFontFamily),
-    displaySmall = baseline.displaySmall.copy(fontFamily = appFontFamily),
-    headlineLarge = baseline.headlineLarge.copy(fontFamily = appFontFamily),
-    headlineMedium = baseline.headlineMedium.copy(fontFamily = appFontFamily),
-    headlineSmall = baseline.headlineSmall.copy(fontFamily = appFontFamily),
-    titleLarge = baseline.titleLarge.copy(fontFamily = appFontFamily),
-    titleMedium = baseline.titleMedium.copy(fontFamily = appFontFamily),
-    titleSmall = baseline.titleSmall.copy(fontFamily = appFontFamily),
+    displayLarge =
+      baseline.displayLarge.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    displayMedium =
+      baseline.displayMedium.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    displaySmall =
+      baseline.displaySmall.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    headlineLarge =
+      baseline.headlineLarge.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    headlineMedium =
+      baseline.headlineMedium.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    headlineSmall =
+      baseline.headlineSmall.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.5).sp,
+      ),
+    titleLarge =
+      baseline.titleLarge.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
+      ),
+    titleMedium =
+      baseline.titleMedium.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
+      ),
+    titleSmall =
+      baseline.titleSmall.copy(
+        fontFamily = appFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
+      ),
     bodyLarge = baseline.bodyLarge.copy(fontFamily = appFontFamily),
     bodyMedium = baseline.bodyMedium.copy(fontFamily = appFontFamily),
     bodySmall = baseline.bodySmall.copy(fontFamily = appFontFamily),

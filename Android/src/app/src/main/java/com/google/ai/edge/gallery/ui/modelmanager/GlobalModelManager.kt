@@ -27,36 +27,47 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,11 +79,10 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -86,9 +96,10 @@ import androidx.core.net.toUri
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
-import com.google.ai.edge.gallery.data.supportModelBenchmark
 import com.google.ai.edge.gallery.data.preferredChatTask
+import com.google.ai.edge.gallery.data.supportModelBenchmark
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.HfModelItemProto
 import com.google.ai.edge.gallery.proto.ImportedModel
@@ -136,6 +147,8 @@ fun GlobalModelManager(
   val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val modelItemExpandedStates = remember { mutableStateMapOf<String, Boolean>() }
+  var searchQuery by rememberSaveable { mutableStateOf("") }
+  var libraryFilter by rememberSaveable { mutableStateOf("All models") }
 
   val processModelUri: (Uri, Boolean) -> Unit = { uri, isWebImport ->
     validateAndProcessModelUri(
@@ -165,7 +178,11 @@ fun GlobalModelManager(
       }
     }
 
-  LaunchedEffect(uiState.modelImportingUpdateTrigger, uiState.loadingModelAllowlist, unifiedInterface) {
+  LaunchedEffect(
+    uiState.modelImportingUpdateTrigger,
+    uiState.loadingModelAllowlist,
+    unifiedInterface,
+  ) {
     val allowlistModels = viewModel.allowlistModels
     val allowlistOrderMap = allowlistModels.withIndex().associate { it.value.name to it.index }
 
@@ -222,132 +239,245 @@ fun GlobalModelManager(
   // Handle system's edge swipe.
   BackHandler { navigateUp() }
 
+  fun isOnDevice(model: Model): Boolean =
+    (listOf(model) + modelVariants.getOrDefault(model.name, emptyList())).any {
+      uiState.modelDownloadStatus[it.name]?.status == ModelDownloadStatusType.SUCCEEDED
+    }
+
+  fun matchesLibraryFilter(model: Model): Boolean {
+    val matchesSearch =
+      searchQuery.isBlank() ||
+        (listOf(model) + modelVariants.getOrDefault(model.name, emptyList())).any {
+          it.name.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.displayName.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    return matchesSearch &&
+      when (libraryFilter) {
+        "On device" -> isOnDevice(model)
+        "Imported" -> model.downloadInfo.imported
+        else -> true
+      }
+  }
+  val visibleBuiltInModels = builtInModels.filter(::matchesLibraryFilter)
+  val visibleImportedModels = importedModels.filter(::matchesLibraryFilter)
+  val readyCount = (builtInModels + importedModels).count(::isOnDevice)
+
   Scaffold(
     modifier = modifier,
+    containerColor = MaterialTheme.colorScheme.background,
     topBar = {
       CenterAlignedTopAppBar(
         title = {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Text(
+            "Model library",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.semantics { heading() },
+          )
+        },
+        navigationIcon = {
+          IconButton(onClick = navigateUp) {
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close_icon))
+          }
+        },
+        actions = {
+          IconButton(onClick = { showImportModelSheet = true }) {
+            Icon(
+              Icons.Filled.Add,
+              contentDescription = stringResource(R.string.cd_import_model_button),
+            )
+          }
+        },
+      )
+    },
+    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+  ) { innerPadding ->
+    LazyColumn(
+      modifier = Modifier.fillMaxSize().padding(innerPadding),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+      contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
+    ) {
+      item(key = "library_overview") {
+        Surface(
+          color = MaterialTheme.colorScheme.primaryContainer,
+          shape = RoundedCornerShape(28.dp),
+        ) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
             Row(
               verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
               Icon(
-                Icons.AutoMirrored.Rounded.ListAlt,
-                modifier = Modifier.size(20.dp),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                Icons.Rounded.CheckCircle,
+                null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
               )
               Text(
-                text =
-                  "${stringResource(R.string.drawer_models_label)} (${builtInModels.size + importedModels.size})",
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() },
+                "$readyCount on device",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
               )
             }
-          }
-        },
-        // The "action" component at the right.
-        actions = {
-          IconButton(onClick = { navigateUp() }) {
-            Icon(
-              imageVector = Icons.Rounded.Close,
-              contentDescription = stringResource(R.string.cd_close_icon),
-              tint = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-        },
-        modifier = modifier,
-      )
-    },
-    floatingActionButton = {
-      // A floating action button to show "import model" bottom sheet.
-      val cdImportModelFab = stringResource(R.string.cd_import_model_button)
-      SmallFloatingActionButton(
-        onClick = { showImportModelSheet = true },
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.semantics { contentDescription = cdImportModelFab },
-      ) {
-        Icon(Icons.Filled.Add, contentDescription = null)
-      }
-    },
-  ) { innerPadding ->
-    Box() {
-      LazyColumn(
-        modifier =
-          Modifier.background(MaterialTheme.colorScheme.surfaceContainer)
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(top = innerPadding.calculateTopPadding()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding =
-          PaddingValues(top = 16.dp, bottom = innerPadding.calculateBottomPadding() + 80.dp),
-      ) {
-        items(builtInModels) { model ->
-          val expanded = modelItemExpandedStates.getOrDefault(model.name, true)
-          ModelItem(
-            model = model,
-            modelVariants = modelVariants.getOrDefault(model.name, listOf()),
-            task = null,
-            modelManagerViewModel = viewModel,
-            onModelClicked = handleClickModel,
-            onBenchmarkClicked = onBenchmarkClicked,
-            expanded = expanded,
-            isBenchmarkSupported = model.supportModelBenchmark,
-            showBenchmarkActionButton = true,
-            onExpanded = { modelItemExpandedStates[model.name] = it },
-            tosViewModel = tosViewModel,
-          )
-        }
-
-        // Imported models.
-        if (importedModels.isNotEmpty()) {
-          item(key = "imported_models_label") {
             Text(
-              stringResource(R.string.model_list_imported_models_title),
-              color = MaterialTheme.colorScheme.onSurface,
-              style = MaterialTheme.typography.labelLarge,
-              modifier =
-                Modifier.semantics { heading() }
-                  .padding(horizontal = 16.dp)
-                  .padding(top = 32.dp, bottom = 8.dp),
+              "Find your next\nthinking partner.",
+              style = MaterialTheme.typography.headlineMedium,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+              "Choose a model for your chats. Download once, then use it on your device.",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Button(
+                onClick = { showHfExploreScreen = true },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+              ) {
+                Icon(Icons.Rounded.Explore, null, modifier = Modifier.size(18.dp))
+                Text("Explore", modifier = Modifier.padding(start = 8.dp))
+              }
+              OutlinedButton(
+                onClick = { showImportModelSheet = true },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+              ) {
+                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                Text("Import", modifier = Modifier.padding(start = 8.dp))
+              }
+            }
+          }
+        }
+      }
+      item(key = "library_search") {
+        OutlinedTextField(
+          value = searchQuery,
+          onValueChange = { searchQuery = it },
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          placeholder = { Text("Search your models") },
+          leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+          trailingIcon = {
+            if (searchQuery.isNotEmpty()) {
+              IconButton(onClick = { searchQuery = "" }) {
+                Icon(Icons.Rounded.Close, contentDescription = "Clear search")
+              }
+            }
+          },
+          singleLine = true,
+          shape = RoundedCornerShape(20.dp),
+        )
+      }
+      item(key = "library_filters") {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          for (filter in listOf("All models", "On device", "Imported")) {
+            FilterChip(
+              selected = libraryFilter == filter,
+              onClick = { libraryFilter = filter },
+              label = { Text(filter) },
+              modifier = Modifier.heightIn(min = 48.dp),
             )
           }
         }
-        items(importedModels, key = { it.name }) { model ->
-          ModelItem(
-            model = model,
-            task = null,
-            modelManagerViewModel = viewModel,
-            onModelClicked = handleClickModel,
-            onBenchmarkClicked = onBenchmarkClicked,
-            expanded = true,
-            isBenchmarkSupported = model.supportModelBenchmark,
-            showBenchmarkActionButton = true,
-            tosViewModel = tosViewModel,
-          )
+      }
+      if (visibleBuiltInModels.isNotEmpty()) {
+        item(key = "curated_models_label") {
+          LibrarySectionLabel("Available models", visibleBuiltInModels.size)
         }
       }
-
-      SnackbarHost(
-        hostState = snackbarHostState,
-        modifier = Modifier.align(alignment = Alignment.BottomCenter).padding(bottom = 32.dp),
-      )
-
-      // Gradient overlay at the bottom.
-      Box(
-        modifier =
-          Modifier.fillMaxWidth()
-            .height(innerPadding.calculateBottomPadding())
-            .background(
-              Brush.verticalGradient(
-                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceContainer)
-              )
-            )
-            .align(Alignment.BottomCenter)
-      )
+      items(visibleBuiltInModels, key = { "built_in_${it.name}" }) { model ->
+        ModelItem(
+          model = model,
+          modelVariants = modelVariants.getOrDefault(model.name, listOf()),
+          task = null,
+          modelManagerViewModel = viewModel,
+          onModelClicked = handleClickModel,
+          onBenchmarkClicked = onBenchmarkClicked,
+          expanded = modelItemExpandedStates.getOrDefault(model.name, false),
+          isBenchmarkSupported = model.supportModelBenchmark,
+          showBenchmarkActionButton = false,
+          onExpanded = { modelItemExpandedStates[model.name] = it },
+          tosViewModel = tosViewModel,
+        )
+      }
+      if (visibleImportedModels.isNotEmpty()) {
+        item(key = "imported_models_label") {
+          LibrarySectionLabel("Your imports", visibleImportedModels.size)
+        }
+      }
+      items(visibleImportedModels, key = { "imported_${it.name}" }) { model ->
+        ModelItem(
+          model = model,
+          modelVariants = modelVariants.getOrDefault(model.name, emptyList()),
+          task = null,
+          modelManagerViewModel = viewModel,
+          onModelClicked = handleClickModel,
+          onBenchmarkClicked = onBenchmarkClicked,
+          expanded = true,
+          isBenchmarkSupported = model.supportModelBenchmark,
+          showBenchmarkActionButton = false,
+          tosViewModel = tosViewModel,
+        )
+      }
+      if (visibleBuiltInModels.isEmpty() && visibleImportedModels.isEmpty()) {
+        item(key = "library_empty") {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            when {
+              uiState.loadingModelAllowlist -> {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                Text("Loading your models…", style = MaterialTheme.typography.bodyMedium)
+              }
+              uiState.loadingModelAllowlistError.isNotBlank() -> {
+                Icon(
+                  Icons.Rounded.Error,
+                  null,
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(32.dp),
+                )
+                Text("Couldn’t load the library", style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = viewModel::loadModelAllowlist) { Text("Try again") }
+              }
+              else -> {
+                Icon(
+                  Icons.Rounded.Search,
+                  null,
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(32.dp),
+                )
+                Text(
+                  if (searchQuery.isNotBlank()) "No matching models"
+                  else "Your library starts here",
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  if (searchQuery.isNotBlank()) "Try another name or clear your search."
+                  else "Download a model or import one to get started.",
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                TextButton(
+                  onClick = {
+                    searchQuery = ""
+                    libraryFilter = "All models"
+                  }
+                ) {
+                  Text("Show all models")
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -405,14 +535,14 @@ fun GlobalModelManager(
     ModalBottomSheet(onDismissRequest = { showImportModelSheet = false }, sheetState = sheetState) {
       Text(
         "Import model",
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp),
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp, start = 24.dp, end = 24.dp),
       )
       Text(
         stringResource(R.string.import_model_terms_subtitle),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 20.dp),
       )
       val cbImportFromLocalFile = stringResource(R.string.cd_import_model_from_local_file_button)
       Box(
@@ -441,8 +571,11 @@ fun GlobalModelManager(
       ) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          horizontalArrangement = Arrangement.spacedBy(16.dp),
+          modifier =
+            Modifier.fillMaxWidth()
+              .heightIn(min = 64.dp)
+              .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
           Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = null)
           Text("From local model file", modifier = Modifier.clearAndSetSemantics {})
@@ -465,8 +598,11 @@ fun GlobalModelManager(
       ) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          horizontalArrangement = Arrangement.spacedBy(16.dp),
+          modifier =
+            Modifier.fillMaxWidth()
+              .heightIn(min = 64.dp)
+              .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
           Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = null)
           Text(
@@ -661,4 +797,24 @@ private fun getFileName(context: Context, uri: Uri): String? {
     return uri.lastPathSegment
   }
   return null
+}
+
+@Composable
+private fun LibrarySectionLabel(title: String, count: Int) {
+  Row(
+    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Text(
+      title,
+      style = MaterialTheme.typography.titleMedium,
+      modifier = Modifier.semantics { heading() },
+    )
+    Text(
+      count.toString(),
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
 }

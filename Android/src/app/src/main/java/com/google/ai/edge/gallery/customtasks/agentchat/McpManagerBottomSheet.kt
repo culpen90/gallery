@@ -27,6 +27,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,20 +44,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -96,8 +102,6 @@ import com.google.ai.edge.gallery.common.clearFocusOnKeyboardDismiss
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.mcp.McpServerState
 import com.google.ai.edge.gallery.ui.common.ClickableLink
-import com.google.ai.edge.gallery.ui.common.SmallFilledTonalButton
-import com.google.ai.edge.gallery.ui.common.SmallOutlinedButton
 import com.google.ai.edge.gallery.ui.theme.customColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -154,7 +158,7 @@ fun McpManagerBottomSheet(
       )
     },
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor = MaterialTheme.colorScheme.background,
   ) {
     Box(modifier = Modifier.fillMaxSize()) {
       // Show spinner when loading the initial server list.
@@ -193,7 +197,7 @@ fun McpManagerBottomSheet(
       else {
         Column(
           modifier =
-            Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
+            Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
               Unit
             ) {
               detectTapGestures(onTap = { focusManager.clearFocus() })
@@ -206,14 +210,14 @@ fun McpManagerBottomSheet(
           ) {
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                stringResource(R.string.manage_mcp_servers),
-                style = MaterialTheme.typography.titleLarge,
+                stringResource(R.string.support_connections_title),
+                style = MaterialTheme.typography.headlineSmall,
               )
-              ClickableLink(
-                url = "https://github.com/google-ai-edge/gallery/tree/main/mcp",
-                linkText = stringResource(R.string.learn_more_about_mcp_short),
+              Text(
+                stringResource(R.string.support_connections_description),
                 modifier = Modifier.padding(top = 4.dp),
-                textAlign = TextAlign.Start,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
             IconButton(
@@ -244,13 +248,16 @@ fun McpManagerBottomSheet(
               value = searchQuery,
               onValueChange = { searchQuery = it },
               modifier = Modifier.weight(1f).clearFocusOnKeyboardDismiss(),
-              shape = CircleShape,
+              shape = RoundedCornerShape(20.dp),
               placeholder = { Text(stringResource(R.string.search_mcp_server)) },
               leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
               trailingIcon = {
                 if (searchQuery.trim().isNotEmpty()) {
                   IconButton(onClick = { searchQuery = "" }) {
-                    Icon(Icons.Outlined.Cancel, contentDescription = null)
+                    Icon(
+                      Icons.Outlined.Cancel,
+                      contentDescription = stringResource(R.string.support_clear_search),
+                    )
                   }
                 }
               },
@@ -290,9 +297,9 @@ fun McpManagerBottomSheet(
           }
 
           AnimatedVisibility(visible = searchQuery.isEmpty()) {
-            Row(
+            FlowRow(
               horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
+              verticalArrangement = Arrangement.spacedBy(4.dp),
               modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             ) {
               // MCP Server Count
@@ -306,7 +313,7 @@ fun McpManagerBottomSheet(
               )
 
               // Select all / Deselect all
-              Row(verticalAlignment = Alignment.CenterVertically) {
+              FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { mcpManagerViewModel.setAllMcpServerEnabled(true) }) {
                   Text(stringResource(R.string.turn_on_all))
                 }
@@ -325,6 +332,37 @@ fun McpManagerBottomSheet(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
               ) {
+                if (filteredServers.isEmpty()) {
+                  item(key = "search_empty") {
+                    Column(
+                      modifier =
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 40.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally,
+                      verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                      Icon(
+                        Icons.Rounded.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                      )
+                      Text(
+                        stringResource(R.string.support_no_matching_connections),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                      )
+                      Text(
+                        stringResource(R.string.support_search_again),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                      )
+                      TextButton(onClick = { searchQuery = "" }) {
+                        Text(stringResource(R.string.support_clear_search))
+                      }
+                    }
+                  }
+                }
                 items(filteredServers, key = { it.mcpServer.url }) { serverState ->
                   McpServerItemRow(
                     serverState = serverState,
@@ -404,7 +442,7 @@ private fun EmptyMcpServerView(onAddClick: () -> Unit, onDismiss: () -> Unit) {
 
   Column(
     modifier =
-      Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
+      Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
         Unit
       ) {
         detectTapGestures(onTap = { focusManager.clearFocus() })
@@ -412,27 +450,67 @@ private fun EmptyMcpServerView(onAddClick: () -> Unit, onDismiss: () -> Unit) {
   ) {
     Row(
       modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-      horizontalArrangement = Arrangement.End,
+      horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
+      Text(
+        stringResource(R.string.support_connections_title),
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.weight(1f),
+      )
       IconButton(modifier = Modifier.padding(end = 3.dp), onClick = onDismiss) {
         Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close_icon))
       }
     }
     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+      Column(
+        modifier =
+          Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        Box(
+          modifier =
+            Modifier.size(72.dp)
+              .clip(RoundedCornerShape(24.dp))
+              .background(MaterialTheme.colorScheme.primaryContainer),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            Icons.Rounded.Link,
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+          )
+        }
+        Text(
+          stringResource(R.string.support_connections_empty_title),
+          style = MaterialTheme.typography.titleLarge,
+          textAlign = TextAlign.Center,
+        )
+        Text(
+          stringResource(R.string.support_connections_empty_description),
+          style = MaterialTheme.typography.bodyMedium,
+          textAlign = TextAlign.Center,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Button(
           onClick = onAddClick,
+          modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
           colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
         ) {
           Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(modifier = Modifier.width(4.dp))
-          Text(stringResource(R.string.add_mcp_server))
+          Text(stringResource(R.string.support_add_connection))
         }
         ClickableLink(
           url = "https://github.com/google-ai-edge/gallery/tree/main/mcp",
           linkText = stringResource(R.string.learn_more_about_mcp),
-          modifier = Modifier.padding(top = 16.dp),
+          modifier = Modifier.padding(top = 4.dp),
         )
       }
     }
@@ -450,9 +528,9 @@ private fun McpServerItemRow(
   Row(
     modifier =
       Modifier.fillMaxWidth()
-        .clip(shape = RoundedCornerShape(20.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-        .padding(horizontal = 16.dp, vertical = 12.dp),
+        .clip(shape = RoundedCornerShape(24.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+        .padding(horizontal = 20.dp, vertical = 16.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Column(modifier = Modifier.weight(1f)) {
@@ -467,7 +545,7 @@ private fun McpServerItemRow(
           // Displays the server name, or just the URL if the name is empty.
           Text(
             primaryText,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
           )
           // Displays the server version if available when a name is present.
           if (hasName && server.version.isNotEmpty()) {
@@ -511,26 +589,29 @@ private fun McpServerItemRow(
         )
       }
 
-      // Buttons row
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Start,
+      // Actions wrap on narrow screens and at larger text sizes.
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.padding(top = 16.dp),
       ) {
         val enabledToolsCount = server.toolsList.count { it.enabled }
         val totalToolsCount = server.toolsList.size
-        SmallFilledTonalButton(
+        FilledTonalButton(
           onClick = onToolsClick,
-          label = "Tools ($enabledToolsCount/$totalToolsCount)",
-          imageVector = Icons.Outlined.Tune,
+          modifier = Modifier.heightIn(min = 48.dp),
           enabled = serverState.error == null,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        SmallOutlinedButton(
-          onClick = onDeleteClick,
-          labelResId = R.string.delete,
-          imageVector = Icons.Outlined.Delete,
-        )
+        ) {
+          Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+          Text(
+            stringResource(R.string.support_tools_count, enabledToolsCount, totalToolsCount),
+            modifier = Modifier.padding(start = 8.dp),
+          )
+        }
+        TextButton(onClick = onDeleteClick, modifier = Modifier.heightIn(min = 48.dp)) {
+          Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+          Text(stringResource(R.string.delete), modifier = Modifier.padding(start = 8.dp))
+        }
       }
     }
   }

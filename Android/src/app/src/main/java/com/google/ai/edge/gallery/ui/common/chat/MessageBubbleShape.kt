@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.LayoutDirection
  *
  * This class defines a custom Shape that generates a rounded rectangle outline, suitable for
  * message bubbles. It allows specifying a uniform corner radius for most corners, but also provides
- * the option to have a hard (non-rounded) corner on either the left or right side.
+ * the option to have a smaller leading corner on either the left or right side.
  */
 class MessageBubbleShape(
   private val radius: Dp,
@@ -52,11 +52,11 @@ class MessageBubbleShape(
             right = size.width,
             bottom = size.height,
             topLeftCornerRadius =
-              if (hardCornerAtLeftOrRight) CornerRadius(0f, 0f)
+              if (hardCornerAtLeftOrRight) CornerRadius(radiusPx * 0.35f, radiusPx * 0.35f)
               else CornerRadius(radiusPx, radiusPx),
             topRightCornerRadius =
               if (hardCornerAtLeftOrRight) CornerRadius(radiusPx, radiusPx)
-              else CornerRadius(0f, 0f), // No rounding here
+              else CornerRadius(radiusPx * 0.35f, radiusPx * 0.35f),
             bottomLeftCornerRadius = CornerRadius(radiusPx, radiusPx),
             bottomRightCornerRadius = CornerRadius(radiusPx, radiusPx),
           )

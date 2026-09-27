@@ -20,7 +20,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -52,10 +51,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ThumbDown
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material.icons.outlined.ThumbDown
-import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,6 +78,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -93,7 +89,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -112,7 +107,6 @@ import com.google.ai.edge.gallery.ui.common.FloatingBanner
 import com.google.ai.edge.gallery.ui.common.RotationalLoader
 import com.google.ai.edge.gallery.ui.common.ScrollToBottomButton
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-import com.google.ai.edge.gallery.ui.theme.customColors
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -192,6 +186,7 @@ fun ChatPanel(
     }
 
   var curMessage by remember { mutableStateOf("") } // Correct state
+  val inputFocusRequester = remember { FocusRequester() }
   val focusManager = LocalFocusManager.current
 
   // List state to control scrolling.
@@ -235,9 +230,9 @@ fun ChatPanel(
   var isAtBottom by remember { mutableStateOf(true) }
   LaunchedEffect(listState) {
     snapshotFlow {
-        // Read the raw scroll state here
-        !listState.canScrollForward
-      }
+      // Read the raw scroll state here
+      !listState.canScrollForward
+    }
       .collectLatest { rawAtBottom ->
         if (!rawAtBottom) {
           delay(500)
@@ -374,13 +369,13 @@ fun ChatPanel(
           messages.forEachIndexed { index, message ->
             val imageHistoryCurIndex = remember { mutableIntStateOf(0) }
             var hAlign: Alignment.Horizontal = Alignment.End
-            var backgroundColor: Color = MaterialTheme.customColors.userBubbleBgColor
+            var backgroundColor: Color = MaterialTheme.colorScheme.primary
             var hardCornerAtLeftOrRight = false
             var extraPaddingStart = 48.dp
             var extraPaddingEnd = 0.dp
             if (message.side == ChatSide.AGENT) {
               hAlign = Alignment.Start
-              backgroundColor = MaterialTheme.customColors.agentBubbleBgColor
+              backgroundColor = MaterialTheme.colorScheme.surfaceContainerLow
               hardCornerAtLeftOrRight = true
               extraPaddingStart = 0.dp
               if (
@@ -405,7 +400,7 @@ fun ChatPanel(
             if (message.type == ChatMessageType.IMAGE) {
               backgroundColor = Color.Transparent
             }
-            val bubbleBorderRadius = dimensionResource(R.dimen.chat_bubble_corner_radius)
+            val bubbleBorderRadius = 24.dp
 
             Column(
               modifier =
@@ -420,10 +415,10 @@ fun ChatPanel(
                     }
                   }
                   .padding(
-                    start = 16.dp + extraPaddingStart,
-                    end = 12.dp + extraPaddingEnd,
-                    top = 6.dp,
-                    bottom = 6.dp,
+                    start = 20.dp + extraPaddingStart,
+                    end = 20.dp + extraPaddingEnd,
+                    top = 12.dp,
+                    bottom = 12.dp,
                   ),
               horizontalAlignment = hAlign,
             ) messageColumn@{
@@ -480,7 +475,7 @@ fun ChatPanel(
                   if (!message.disableBubbleShape && !isAgentResponseText) {
                     // Use a rounded rectangle clip for multi-image image message.
                     if (message is ChatMessageImage && message.bitmaps.size > 1) {
-                      messageBubbleModifier = messageBubbleModifier.clip(RoundedCornerShape(6.dp))
+                      messageBubbleModifier = messageBubbleModifier.clip(RoundedCornerShape(20.dp))
                     }
                     // For other messages, use a bubble shape to clip.
                     else {
@@ -505,7 +500,7 @@ fun ChatPanel(
                             if (isAgentResponseText) {
                               0.dp
                             } else {
-                              12.dp
+                              16.dp
                             },
                           onCopyClicked = copyToClipboard,
                         )
@@ -556,7 +551,7 @@ fun ChatPanel(
                       if (message is ChatMessageText && !uiState.inProgress) {
                         IconButton(
                           onClick = { copyToClipboard(message.content) },
-                          modifier = Modifier.size(28.dp),
+                          modifier = Modifier.size(48.dp),
                         ) {
                           Icon(
                             imageVector = Icons.Rounded.ContentCopy,
@@ -602,7 +597,21 @@ fun ChatPanel(
 
         // Show empty state.
         if (messages.isEmpty() && pickedImagesCount == 0 && pickedAudioClipsCount == 0) {
-          emptyStateComposable(selectedModel)
+          if (unifiedInterface) {
+            ChatWelcome(
+              enabled =
+                !uiState.inProgress &&
+                  !uiState.isResettingSession &&
+                  !showAudioRecorder &&
+                  modelInitStatus !is Model.InitializationStatus.Initializing,
+              onPromptSelected = { prompt ->
+                curMessage = prompt
+                inputFocusRequester.requestFocus()
+              },
+            )
+          } else {
+            emptyStateComposable(selectedModel)
+          }
         }
         // Loading screen when model is initialized for that first time.
         val isFirstInitializing =
@@ -688,6 +697,7 @@ fun ChatPanel(
         task = task,
         modelManagerViewModel = modelManagerViewModel,
         curMessage = curMessage,
+        inputFocusRequester = inputFocusRequester,
         inProgress = uiState.inProgress,
         isResettingSession = uiState.isResettingSession,
         modelPreparing = uiState.preparing,
@@ -696,7 +706,8 @@ fun ChatPanel(
         skillCount = skillCount,
         mcpCount = mcpCount,
         modelInitializing = modelInitStatus is Model.InitializationStatus.Initializing,
-        textFieldPlaceHolderRes = task.textInputPlaceHolderRes,
+        textFieldPlaceHolderRes =
+          if (unifiedInterface) R.string.chat_composer_hint else task.textInputPlaceHolderRes,
         onValueChanged = { curMessage = it },
         onSendMessage = {
           onSendMessage(selectedModel, it)

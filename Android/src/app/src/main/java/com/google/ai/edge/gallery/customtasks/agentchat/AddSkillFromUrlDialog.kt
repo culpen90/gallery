@@ -25,13 +25,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -97,15 +101,16 @@ fun AddSkillFromUrlDialog(
         ) {
           focusManager.clearFocus()
         },
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(28.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
       Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         Text(
           stringResource(R.string.add_skill_from_url_dialog_title),
-          style = MaterialTheme.typography.titleMedium,
+          style = MaterialTheme.typography.headlineSmall,
           modifier = Modifier.padding(bottom = 8.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -123,9 +128,9 @@ fun AddSkillFromUrlDialog(
                 skillManagerViewModel.setValidationError(null)
               }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             textStyle =
-              MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+              MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
             maxLines = 3,
             decorationBox = { innerTextField ->
               OutlinedTextFieldDefaults.DecorationBox(
@@ -135,7 +140,7 @@ fun AddSkillFromUrlDialog(
                 singleLine = false,
                 visualTransformation = VisualTransformation.None,
                 interactionSource = remember { MutableInteractionSource() },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
                 container = {
                   OutlinedTextFieldDefaults.Container(
                     enabled = true,
@@ -179,6 +184,8 @@ fun AddSkillFromUrlDialog(
             }
             Spacer(modifier = Modifier.width(4.dp))
             Button(
+              modifier = Modifier.heightIn(min = 48.dp),
+              enabled = textFieldValue.text.isNotBlank(),
               onClick = {
                 val url = textFieldValue.text
                 if (isHostApproved(url)) {
@@ -186,7 +193,7 @@ fun AddSkillFromUrlDialog(
                 } else {
                   showDisclaimerDialog = true
                 }
-              }
+              },
             ) {
               Text(stringResource(R.string.add))
             }

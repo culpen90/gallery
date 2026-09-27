@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -70,18 +71,19 @@ fun BenchmarkModelPicker(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(4.dp),
     modifier =
-      Modifier.clip(RoundedCornerShape(8.dp))
+      Modifier.fillMaxWidth()
+        .heightIn(min = 52.dp)
+        .clip(RoundedCornerShape(16.dp))
         .clickable { showBottomSheet = true }
-        .background(MaterialTheme.colorScheme.secondaryContainer)
-        .padding(4.dp)
-        .padding(start = 8.dp),
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .padding(horizontal = 16.dp, vertical = 12.dp),
   ) {
     Text(
       selectedModelName,
       style = MaterialTheme.typography.labelLarge,
-      maxLines = 1,
-      overflow = TextOverflow.MiddleEllipsis,
-      modifier = Modifier.weight(1f, fill = false),
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.weight(1f),
     )
     Icon(
       Icons.Rounded.ArrowDropDown,
@@ -100,7 +102,7 @@ fun BenchmarkModelPicker(
       Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
         Text(
           stringResource(titleResId),
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.headlineSmall,
           color = MaterialTheme.colorScheme.onSurface,
           modifier = Modifier.padding(16.dp),
         )
@@ -116,7 +118,8 @@ fun BenchmarkModelPicker(
                       showBottomSheet = false
                     }
                   }
-                  .padding(horizontal = 16.dp, vertical = 6.dp)
+                  .heightIn(min = 56.dp)
+                  .padding(horizontal = 20.dp, vertical = 16.dp)
                   .fillMaxWidth(),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(16.dp),

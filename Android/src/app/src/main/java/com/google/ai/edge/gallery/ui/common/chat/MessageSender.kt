@@ -72,7 +72,11 @@ fun MessageSender(message: ChatMessage, agentName: String = "", imageHistoryCurI
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       // Sender label.
-      Text(userLabel, style = MaterialTheme.typography.titleSmall)
+      Text(
+        userLabel,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
 
       when (message) {
         // Benchmark running status.
@@ -149,7 +153,7 @@ private fun getMessageLayoutConfig(
   var userLabel = stringResource(R.string.chat_you)
   var rightSideLabel = ""
   var horizontalArrangement = Arrangement.End
-  var modifier = Modifier.padding(bottom = 2.dp)
+  var modifier = Modifier.padding(bottom = 6.dp)
 
   if (message.side == ChatSide.AGENT) {
     userLabel = agentName

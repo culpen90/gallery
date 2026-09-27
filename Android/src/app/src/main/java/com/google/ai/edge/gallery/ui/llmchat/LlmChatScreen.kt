@@ -16,31 +16,22 @@
 
 package com.google.ai.edge.gallery.ui.llmchat
 
-import androidx.hilt.navigation.compose.hiltViewModel
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Photo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.agent.sessions.generateSessionId
@@ -49,20 +40,19 @@ import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelCapability
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.firebaseAnalytics
-import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
-import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
-import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.AudioInputMode
-import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
+import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
+import com.google.ai.edge.gallery.ui.common.chat.ChatMediaWelcome
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageImage
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageMapper
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageText
 import com.google.ai.edge.gallery.ui.common.chat.ChatView
 import com.google.ai.edge.gallery.ui.common.chat.SendMessageTrigger
+import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-import com.google.ai.edge.gallery.ui.theme.emptyStateContent
-import com.google.ai.edge.gallery.ui.theme.emptyStateTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -146,32 +136,15 @@ fun LlmAskImageScreen(
     showImagePicker = true,
     showAudioPicker = false,
     emptyStateComposable = { model ->
-      Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-          modifier =
-            Modifier.align(Alignment.Center).padding(horizontal = 48.dp).padding(bottom = 48.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-          Text(
-            stringResource(R.string.askimage_emptystate_title),
-            style = emptyStateTitle,
-            modifier = Modifier.semantics { heading() },
-          )
-          val contentRes =
-            if (model.isAiCore) {
-              R.string.askimage_emptystate_content_aicore
-            } else {
-              R.string.askimage_emptystate_content
-            }
-          Text(
-            stringResource(contentRes),
-            style = emptyStateContent,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-          )
-        }
-      }
+      ChatMediaWelcome(
+        title = stringResource(R.string.askimage_emptystate_title),
+        description =
+          stringResource(
+            if (model.isAiCore) R.string.askimage_emptystate_content_aicore
+            else R.string.askimage_emptystate_content
+          ),
+        icon = Icons.Rounded.Photo,
+      )
     },
   )
 }
@@ -198,26 +171,11 @@ fun LlmAskAudioScreen(
     showImagePicker = false,
     showAudioPicker = true,
     emptyStateComposable = {
-      Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-          modifier =
-            Modifier.align(Alignment.Center).padding(horizontal = 48.dp).padding(bottom = 48.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-          Text(
-            stringResource(R.string.askaudio_emptystate_title),
-            style = emptyStateTitle,
-            modifier = Modifier.semantics { heading() },
-          )
-          Text(
-            stringResource(R.string.askaudio_emptystate_content),
-            style = emptyStateContent,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-          )
-        }
-      }
+      ChatMediaWelcome(
+        title = stringResource(R.string.askaudio_emptystate_title),
+        description = stringResource(R.string.askaudio_emptystate_content),
+        icon = Icons.Rounded.Mic,
+      )
     },
   )
 }
@@ -358,9 +316,12 @@ fun ChatViewWrapper(
       val hasSavedAudio = session.messagesList.any { it.messageType == "AUDIO_CLIP" }
       val showAudioHistoryNotice = {
         val restoredMessages = viewModel.uiState.value.messagesByModel[selectedModel.name].orEmpty()
-        if (hasSavedAudio && restoredMessages.none {
-            it is ChatMessageInfo && it.content == audioHistoryNotice
-          }) {
+        if (
+          hasSavedAudio &&
+            restoredMessages.none {
+              it is ChatMessageInfo && it.content == audioHistoryNotice
+            }
+        ) {
           viewModel.addMessage(selectedModel, ChatMessageInfo(audioHistoryNotice))
         }
       }

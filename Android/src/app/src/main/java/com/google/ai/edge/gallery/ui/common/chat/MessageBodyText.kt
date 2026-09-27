@@ -22,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -45,8 +44,8 @@ fun MessageBodyText(
       MarkdownText(
         text = message.content,
         modifier = Modifier.padding(vertical = 12.dp).padding(horizontal = horizontalPadding),
-        textColor = Color.White,
-        linkColor = Color.White,
+        textColor = MaterialTheme.colorScheme.onPrimary,
+        linkColor = MaterialTheme.colorScheme.onPrimary,
       )
     }
   } else if (message.side == ChatSide.AGENT) {
@@ -69,7 +68,7 @@ fun MessageBodyText(
       SelectionContainer {
         Text(
           message.content,
-          style = MaterialTheme.typography.bodyMedium,
+          style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurface,
           modifier =
             Modifier.padding(vertical = 12.dp)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="redesign_gallery">Gallery</string>
+    <string name="redesign_tagline">A little help, wherever you are.</string>
+    <string name="redesign_menu_models">Your models</string>
+    <string name="redesign_menu_models_detail">Find, download, and manage on-device AI</string>
+    <string name="redesign_menu_notifications_detail">Reminders and scheduled updates</string>
+    <string name="redesign_menu_settings_detail">Appearance, privacy, and connected accounts</string>
+    <string name="redesign_local_note">AI runs on your device. Connected tools may use the internet.</string>
+    <string name="redesign_get_started">Make room for a little possibility.</string>
+    <string name="redesign_setup_detail">Choose a model to start a conversation, explore an idea, or get things done.</string>
+    <string name="redesign_loading">Getting things ready</string>
+    <string name="redesign_loading_detail">Finding models for your device…</string>
+    <string name="redesign_history_count">%1$d saved conversations</string>
+    <string name="redesign_history_empty">A fresh start</string>
+    <string name="redesign_history_empty_detail">Your conversations will appear here, ready to pick up whenever you like.</string>
+    <string name="redesign_untitled_chat">Untitled conversation</string>
+    <string name="redesign_delete_chat">Delete conversation: %1$s</string>
+    <string name="redesign_delete_one_title">Delete this conversation?</string>
+    <string name="redesign_delete_one_detail">This conversation will be removed from this device. This cannot be undone.</string>
+    <string name="redesign_appearance">Make it yours</string>
+    <string name="redesign_privacy">Privacy</string>
+    <string name="redesign_connections">Model downloads</string>
+    <string name="redesign_about">About Gallery</string>
+    <string name="redesign_settings_subtitle">A few things to make Gallery feel like you.</string>
+    <string name="redesign_token_title">Hugging Face</string>
+    <string name="redesign_token_detail">An access token lets you download models that require a Hugging Face account.</string>
+    <string name="redesign_token_connected">Access token saved</string>
+    <string name="redesign_token_none">No access token added</string>
+    <string name="redesign_token_input">Paste an access token</string>
+    <string name="redesign_save_token">Save token</string>
+    <string name="redesign_remove_token">Remove token</string>
+</resources>

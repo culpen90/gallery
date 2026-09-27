@@ -27,7 +27,7 @@ fun MessageBodyAudioClip(message: ChatMessageAudioClip, modifier: Modifier = Mod
     audioData = message.audioData,
     sampleRate = message.sampleRate,
     isRecording = false,
-    modifier = Modifier.padding(end = 16.dp),
-    onDarkBg = true,
+    modifier = modifier.padding(end = 16.dp, top = 6.dp, bottom = 6.dp),
+    onDarkBg = message.side == ChatSide.USER,
   )
 }

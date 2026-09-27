@@ -20,10 +20,14 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Info
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,8 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -50,13 +53,13 @@ import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.MODEL_INFO_ICON_SIZE
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.ModelCapability
 import com.google.ai.edge.gallery.data.ModelDownloadStatus
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.common.ClickableLink
 import com.google.ai.edge.gallery.ui.common.humanReadableSize
 import com.google.ai.edge.gallery.ui.theme.customColors
-import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
 
 /**
  * Composable function to display the model name and its download status information.
@@ -67,7 +70,7 @@ import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
  * - "Unzipping..." status for unzipping processes.
  * - Model size for successful downloads.
  */
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun ModelNameAndStatus(
   model: Model,
@@ -89,7 +92,7 @@ fun ModelNameAndStatus(
       ) {
         Icon(
           Icons.Filled.Star,
-          tint = Color(0xFFFCC934),
+          tint = MaterialTheme.colorScheme.primary,
           contentDescription = null,
           modifier = Modifier.size(18.dp),
         )
@@ -97,7 +100,6 @@ fun ModelNameAndStatus(
           stringResource(R.string.best_overall),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.alpha(0.6f),
         )
       }
     }
@@ -109,7 +111,8 @@ fun ModelNameAndStatus(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier =
-          Modifier.padding(bottom = 10.dp)
+          Modifier.heightIn(min = 48.dp)
+            .padding(bottom = 8.dp)
             .then(
               if (model.downloadInfo.updateInfo.isNotEmpty()) {
                 Modifier.clickable(role = Role.Button) { showUpdateDialog = true }
@@ -148,8 +151,8 @@ fun ModelNameAndStatus(
     // Model name and action buttons.
     Text(
       model.displayName.ifEmpty { model.name },
-      maxLines = 1,
-      overflow = TextOverflow.MiddleEllipsis,
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
       style = MaterialTheme.typography.titleMedium,
       modifier = Modifier.padding(end = 64.dp),
     )
@@ -165,8 +168,36 @@ fun ModelNameAndStatus(
       )
     }
 
+    val capabilityLabels = buildList {
+      if (model.isLlm) add("Text")
+      if (model.supportImage) add("Images")
+      if (model.supportAudio) add("Audio")
+      if (ModelCapability.LLM_THINKING in model.capabilities) add("Reasoning")
+    }
+    if (capabilityLabels.isNotEmpty()) {
+      FlowRow(
+        modifier = Modifier.padding(top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        for (label in capabilityLabels) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+          ) {
+            Text(
+              label,
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+          }
+        }
+      }
+    }
+
     // Learn more url.
-    if (!model.downloadInfo.imported && model.learnMoreUrl.isNotEmpty()) {
+    if (isExpanded && !model.downloadInfo.imported && model.learnMoreUrl.isNotEmpty()) {
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -214,7 +245,8 @@ fun ModelStatusDetails(
         Text(
           downloadStatus.errorMessage,
           color = MaterialTheme.colorScheme.error,
-          style = labelSmallNarrow,
+          style = MaterialTheme.typography.bodySmall,
+          maxLines = 3,
           overflow = TextOverflow.Ellipsis,
         )
       }
@@ -223,7 +255,7 @@ fun ModelStatusDetails(
     else {
       var sizeLabel = model.downloadInfo.totalBytes.humanReadableSize()
       if (model.downloadInfo.localRelativeDirPathOverride.isNotEmpty()) {
-        sizeLabel = "{ext_files_dir}/${model.downloadInfo.localRelativeDirPathOverride}"
+        sizeLabel = "Stored on device"
       }
 
       // Populate the status label.
@@ -251,27 +283,27 @@ fun ModelStatusDetails(
           if (curDownloadProgress.isNaN()) {
             curDownloadProgress = 0f
           }
+        } else if (downloadStatus.status == ModelDownloadStatusType.SUCCEEDED) {
+          sizeLabel = "Ready · $sizeLabel"
         }
         // Status for unzipping.
         else if (downloadStatus.status == ModelDownloadStatusType.UNZIPPING) {
-          sizeLabel = "Unzipping..."
+          sizeLabel = "Preparing model…"
         }
       }
 
-      Column(
-        horizontalAlignment = if (isExpanded) Alignment.CenterHorizontally else Alignment.Start
-      ) {
+      Column(horizontalAlignment = Alignment.Start) {
         for ((index, line) in sizeLabel.split("\n").withIndex()) {
           Text(
             line,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
             style =
               MaterialTheme.typography.bodyMedium.copy(
                 // This stops numbers from "jumping around" when being updated.
                 fontFeatureSettings = "tnum"
               ),
-            overflow = TextOverflow.Visible,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.offset(y = if (index == 0) 0.dp else (-1).dp),
           )
         }

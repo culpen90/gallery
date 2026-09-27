@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="support_back">Back</string>
+  <string name="support_notifications_description">Your scheduled reminders, all in one place.</string>
+  <string name="support_notifications_empty_description">Ask in chat to set a reminder. It will appear here so you can review or remove it.</string>
+  <string name="support_return_to_chat">Back to chat</string>
+  <string name="support_reminders">Reminders</string>
+  <string name="support_delete_reminder">Delete reminder: %1$s</string>
+  <string name="support_skills_title">Skills</string>
+  <string name="support_skills_description">Your assistant uses enabled skills automatically when they can help.</string>
+  <string name="support_no_matching_skills">No matching skills</string>
+  <string name="support_search_again">Try another name or clear your search.</string>
+  <string name="support_clear_search">Clear search</string>
+  <string name="support_connections_title">Connections</string>
+  <string name="support_connections_description">Connect services to give your assistant more tools.</string>
+  <string name="support_connections_empty_title">Bring your tools into chat</string>
+  <string name="support_connections_empty_description">Add an MCP server to connect a service. Your assistant can use its enabled tools when you need them.</string>
+  <string name="support_add_connection">Add connection</string>
+  <string name="support_no_matching_connections">No matching connections</string>
+  <string name="support_skill_details">Details</string>
+  <string name="support_tools_count">Tools · %1$d of %2$d</string>
+  <string name="support_onboarding_progress">%1$d of %2$d</string>
+  <string name="support_get_started">Get started</string>
+  <string name="support_prompt_history_description">Tap a previous prompt to use it again.</string>
+  <string name="support_prompt_history_empty">Your previous prompts will appear here.</string>
+  <string name="support_benchmark_description">Measure how quickly a model runs on your device.</string>
+  <string name="support_benchmark_model_label">Model to test</string>
+</resources>

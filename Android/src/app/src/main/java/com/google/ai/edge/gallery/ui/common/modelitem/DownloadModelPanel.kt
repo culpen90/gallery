@@ -85,7 +85,7 @@ fun DownloadModelPanel(
       if (showBenchmarkActionButton && downloadSucceeded && model.isLlm) {
         val expandBenchmarkButton = isExpanded && !isUpdatable
         // Benchmark button.
-        var buttonModifier: Modifier = Modifier.height(42.dp)
+        var buttonModifier: Modifier = Modifier.height(48.dp)
         if (expandBenchmarkButton) {
           buttonModifier = buttonModifier.weight(1f)
         }
@@ -108,7 +108,12 @@ fun DownloadModelPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
           ) {
-            Icon(Icons.Rounded.BarChart, contentDescription = null, tint = textColor)
+            Icon(
+              Icons.Rounded.BarChart,
+              contentDescription =
+                if (expandBenchmarkButton) null else stringResource(R.string.benchmark),
+              tint = textColor,
+            )
 
             if (expandBenchmarkButton) {
               Text(
@@ -128,7 +133,7 @@ fun DownloadModelPanel(
 
       // Display an update button if the model is updatable.
       if (isUpdatable) {
-        var buttonModifier: Modifier = Modifier.height(42.dp)
+        var buttonModifier: Modifier = Modifier.height(48.dp)
         if (isExpanded) {
           buttonModifier = buttonModifier.weight(1f)
         }
@@ -152,7 +157,11 @@ fun DownloadModelPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
           ) {
-            Icon(Icons.Outlined.Update, contentDescription = null, tint = textColor)
+            Icon(
+              Icons.Outlined.Update,
+              contentDescription = if (isExpanded) null else stringResource(R.string.update),
+              tint = textColor,
+            )
 
             if (isExpanded) {
               Text(

@@ -27,10 +27,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -38,7 +39,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -49,17 +50,17 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -85,8 +86,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -101,7 +103,6 @@ import com.google.ai.edge.gallery.data.LabelConfig
 import com.google.ai.edge.gallery.data.NumberSliderConfig
 import com.google.ai.edge.gallery.data.SegmentedButtonConfig
 import com.google.ai.edge.gallery.data.ValueType
-import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -152,26 +153,26 @@ fun ConfigDialog(
             focusManager.clearFocus()
           }
           .imePadding(),
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(28.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
       Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Dialog title and subtitle.
         Column {
           Text(
             title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(bottom = 8.dp),
           )
           // Subtitle.
           if (subtitle.isNotEmpty()) {
             Text(
               subtitle,
-              style = labelSmallNarrow,
+              style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.offset(y = (-6).dp),
             )
           }
         }
@@ -210,8 +211,9 @@ fun ConfigDialog(
         } else if (selectedTabIndex == 1) {
           OutlinedTextField(
             value = systemPrompt,
-            modifier = Modifier.weight(1f, fill = false),
-            textStyle = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(min = 120.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
+            shape = RoundedCornerShape(20.dp),
             onValueChange = { systemPrompt = it },
             placeholder = {
               Text(
@@ -241,24 +243,23 @@ fun ConfigDialog(
           }
         }
 
-        Row(
+        FlowRow(
           modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-          horizontalArrangement = Arrangement.End,
-          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
           // Cancel button.
           if (showCancel) {
             TextButton(onClick = { onDismissed() }) { Text(stringResource(R.string.cancel)) }
           }
 
-          Spacer(modifier = Modifier.width(8.dp))
-
           // Ok button
           Button(
+            modifier = Modifier.heightIn(min = 48.dp),
             onClick = {
               Log.d(TAG, "Values from dialog: $values")
               onOk(values.toMap(), savedSystemPrompt, systemPrompt)
-            }
+            },
           ) {
             Text(okBtnLabel)
           }
@@ -272,33 +273,41 @@ fun ConfigDialog(
 @Composable
 fun ConfigEditorsPanel(configs: List<Config>, values: SnapshotStateMap<String, Any>) {
   for (config in configs) {
-    when (config) {
-      // Label.
-      is LabelConfig -> {
-        LabelRow(config = config, values = values)
-      }
+    Surface(
+      modifier = Modifier.fillMaxWidth(),
+      color = MaterialTheme.colorScheme.surfaceContainerLow,
+      shape = RoundedCornerShape(20.dp),
+    ) {
+      Column(modifier = Modifier.padding(16.dp)) {
+        when (config) {
+          // Label.
+          is LabelConfig -> {
+            LabelRow(config = config, values = values)
+          }
 
-      // Number slider.
-      is NumberSliderConfig -> {
-        NumberSliderRow(config = config, values = values)
-      }
+          // Number slider.
+          is NumberSliderConfig -> {
+            NumberSliderRow(config = config, values = values)
+          }
 
-      // Boolean switch.
-      is BooleanSwitchConfig -> {
-        BooleanSwitchRow(config = config, values = values)
-      }
+          // Boolean switch.
+          is BooleanSwitchConfig -> {
+            BooleanSwitchRow(config = config, values = values)
+          }
 
-      // Segmented button.
-      is SegmentedButtonConfig -> {
-        SegmentedButtonRow(config = config, values = values)
-      }
+          // Segmented button.
+          is SegmentedButtonConfig -> {
+            SegmentedButtonRow(config = config, values = values)
+          }
 
-      // Bottom sheet selector.
-      is BottomSheetSelectorConfig -> {
-        BottomSheetSelectorRow(config = config, values = values)
-      }
+          // Bottom sheet selector.
+          is BottomSheetSelectorConfig -> {
+            BottomSheetSelectorRow(config = config, values = values)
+          }
 
-      else -> {}
+          else -> {}
+        }
+      }
     }
   }
 }
@@ -350,7 +359,8 @@ fun getTextFieldDisplayValue(valueType: ValueType, value: Float): String {
 fun NumberSliderRow(config: NumberSliderConfig, values: SnapshotStateMap<String, Any>) {
   val focusManager = LocalFocusManager.current
 
-  Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+  val fieldLabel = stringResource(config.key.labelRes)
+  Column(modifier = Modifier.fillMaxWidth()) {
     // Field label.
     val minStr = getTextFieldDisplayValue(config.valueType, config.sliderMin)
     val maxStr = getTextFieldDisplayValue(config.valueType, config.sliderMax)
@@ -381,7 +391,10 @@ fun NumberSliderRow(config: NumberSliderConfig, values: SnapshotStateMap<String,
         }
 
       Slider(
-        modifier = Modifier.height(24.dp).weight(1f).padding(end = 8.dp),
+        modifier =
+          Modifier.heightIn(min = 48.dp).weight(1f).padding(end = 8.dp).semantics {
+            contentDescription = fieldLabel
+          },
         value = sliderValue,
         valueRange = config.sliderMin..config.sliderMax,
         onValueChange = {
@@ -396,15 +409,20 @@ fun NumberSliderRow(config: NumberSliderConfig, values: SnapshotStateMap<String,
       BasicTextField(
         value = textFieldDisplayValue,
         modifier =
-          Modifier.width(80.dp).focusRequester(focusRequester).onFocusChanged {
-            isFocused = it.isFocused
+          Modifier.width(88.dp)
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = fieldLabel }
+            .focusRequester(focusRequester)
+            .onFocusChanged {
+              isFocused = it.isFocused
 
-            // When leaving focus, display the internal value so that any invalid value is cleared.
-            if (!isFocused) {
-              textFieldDisplayValue =
-                getTextFieldDisplayValue(config.valueType, values[config.key.label] as Float)
-            }
-          },
+              // When leaving focus, display the internal value so that any invalid value is
+              // cleared.
+              if (!isFocused) {
+                textFieldDisplayValue =
+                  getTextFieldDisplayValue(config.valueType, values[config.key.label] as Float)
+              }
+            },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         singleLine = true,
@@ -418,20 +436,23 @@ fun NumberSliderRow(config: NumberSliderConfig, values: SnapshotStateMap<String,
             values[config.key.label] = minOf(maxOf(floatValue, config.sliderMin), config.sliderMax)
           }
         },
-        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
+        textStyle =
+          MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
       ) { innerTextField ->
         Box(
           modifier =
-            Modifier.border(
-              width = if (isFocused) 2.dp else 1.dp,
-              color =
-                if (isFocused) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
-              shape = RoundedCornerShape(4.dp),
-            )
+            Modifier.heightIn(min = 48.dp)
+              .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color =
+                  if (isFocused) MaterialTheme.colorScheme.primary
+                  else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp),
+              ),
+          contentAlignment = Alignment.CenterStart,
         ) {
-          Box(modifier = Modifier.padding(8.dp)) { innerTextField() }
+          Box(modifier = Modifier.padding(12.dp)) { innerTextField() }
         }
       }
     }
@@ -469,9 +490,24 @@ fun BooleanSwitchRow(config: BooleanSwitchConfig, values: SnapshotStateMap<Strin
     } catch (e: Exception) {
       false
     }
-  Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-    Text(stringResource(config.key.labelRes), style = MaterialTheme.typography.titleSmall)
-    Switch(checked = switchValue, onCheckedChange = { values[config.key.label] = it })
+  Row(
+    modifier =
+      Modifier.fillMaxWidth()
+        .heightIn(min = 56.dp)
+        .toggleable(
+          value = switchValue,
+          role = Role.Switch,
+          onValueChange = { values[config.key.label] = it },
+        ),
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      stringResource(config.key.labelRes),
+      style = MaterialTheme.typography.titleSmall,
+      modifier = Modifier.weight(1f),
+    )
+    Switch(checked = switchValue, onCheckedChange = null)
   }
 }
 
@@ -490,13 +526,16 @@ fun SegmentedButtonRow(config: SegmentedButtonConfig, values: SnapshotStateMap<S
     )
   }
 
-  Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+  Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Text(stringResource(config.key.labelRes), style = MaterialTheme.typography.titleSmall)
-    MultiChoiceSegmentedButtonRow {
+    FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
       config.options.forEachIndexed { index, label ->
-        SegmentedButton(
-          shape = SegmentedButtonDefaults.itemShape(index = index, count = config.options.size),
-          onCheckedChange = {
+        FilterChip(
+          modifier = Modifier.heightIn(min = 48.dp),
+          onClick = {
             var newSelectionStates = selectionStates.toMutableList()
             val selectedCount = newSelectionStates.count { it }
 
@@ -519,8 +558,8 @@ fun SegmentedButtonRow(config: SegmentedButtonConfig, values: SnapshotStateMap<S
                 .filterIndexed { index, option -> selectionStates[index] }
                 .joinToString(",")
           },
-          checked = selectionStates[index],
-          label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) },
+          selected = selectionStates[index],
+          label = { Text(label) },
         )
       }
     }
@@ -565,10 +604,10 @@ fun BottomSheetSelectorRow(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
       modifier =
-        Modifier.height(40.dp)
-          .clip(CircleShape)
+        Modifier.heightIn(min = 56.dp)
+          .clip(RoundedCornerShape(16.dp))
           .clickable { showBottomSheet = true }
-          .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+          .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
           .padding(start = 12.dp, end = 8.dp),
     ) {
       Text(
@@ -576,8 +615,8 @@ fun BottomSheetSelectorRow(
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.weight(1f),
-        maxLines = 1,
-        overflow = TextOverflow.MiddleEllipsis,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
       )
       Icon(
         Icons.Rounded.ArrowDropDown,
@@ -617,7 +656,8 @@ fun BottomSheetSelectorRow(
                       showBottomSheet = false
                     }
                   }
-                  .padding(horizontal = 16.dp, vertical = 12.dp)
+                  .heightIn(min = 56.dp)
+                  .padding(horizontal = 20.dp, vertical = 16.dp)
                   .fillMaxWidth(),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(16.dp),

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,7 +91,7 @@ private val ITEM_SPACING_XSMALL = 8.dp
 private val ITEM_SPACING_XXSMALL = 4.dp
 private val BADGE_VERTICAL_SPACING = 6.dp
 private val BADGE_ICON_SIZE = 16.dp
-private val CARD_CORNER_RADIUS = 12.dp
+private val CARD_CORNER_RADIUS = 20.dp
 private const val DISABLED_CONTENT_ALPHA = 0.6f
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,7 +174,7 @@ fun HfModelDetailsContent(
       ) {
         Text(
           text = modelItem.modelName,
-          style = MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.headlineSmall,
           fontWeight = FontWeight.Bold,
         )
         Text(
@@ -302,7 +303,7 @@ fun HfModelDetailsContent(
                   }
                 },
                 enabled = currentSelectedFile != null,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
               ) {
                 Text(
                   text = stringResource(R.string.import_selected_model),
@@ -343,10 +344,10 @@ private fun ModelFileItemRow(
   Surface(
     shape = RoundedCornerShape(CARD_CORNER_RADIUS),
     color =
-      if (fileInfo.isDisabled) {
-        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = DISABLED_CONTENT_ALPHA)
+      if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
       } else {
-        MaterialTheme.colorScheme.surfaceContainer
+        MaterialTheme.colorScheme.surfaceContainerLow
       },
     modifier =
       modifier.fillMaxWidth().padding(vertical = ITEM_SPACING_XXSMALL).clickable { onSelect() },

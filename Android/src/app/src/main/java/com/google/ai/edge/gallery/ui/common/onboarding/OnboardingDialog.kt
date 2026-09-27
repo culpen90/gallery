@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -162,18 +163,28 @@ fun OnboardingDialogContent(
   ) {
     Card(
       shape = RoundedCornerShape(28.dp),
-      modifier = modifier.fillMaxWidth().fillMaxHeight(0.8f),
-      colors =
-        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+      modifier = modifier.fillMaxWidth().fillMaxHeight(0.86f),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
       Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         // Top animated page indicator.
         if (pages.size > 1) {
-          OnboardingPageIndicator(
-            pageCount = pages.size,
-            currentPage = pagerState.currentPage,
-            modifier = Modifier.padding(bottom = 16.dp),
-          )
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            OnboardingPageIndicator(pageCount = pages.size, currentPage = pagerState.currentPage)
+            Text(
+              stringResource(
+                R.string.support_onboarding_progress,
+                pagerState.currentPage + 1,
+                pages.size,
+              ),
+              style = MaterialTheme.typography.labelLarge,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
         }
 
         // Horizontal Pager for onboarding pages.
@@ -211,7 +222,8 @@ fun OnboardingDialogContent(
                 coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
               }
             },
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.heightIn(min = 52.dp),
           ) {
             Icon(
               imageVector =
@@ -221,7 +233,8 @@ fun OnboardingDialogContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = stringResource(if (isLastPage) R.string.done else R.string.next),
+              text =
+                stringResource(if (isLastPage) R.string.support_get_started else R.string.next),
               fontWeight = FontWeight.Medium,
             )
           }
@@ -284,12 +297,12 @@ fun OnboardingPage(page: OnboardingPageInfo, modifier: Modifier = Modifier) {
   val displayDescription =
     if (page.descriptionRes != 0) stringResource(page.descriptionRes) else page.description
 
-  Column(modifier = modifier) {
+  Column(modifier = modifier.verticalScroll(rememberScrollState())) {
     // Title
     if (displayTitle.isNotEmpty()) {
       Text(
         text = displayTitle,
-        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
+        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.onSurface,
       )
       Spacer(modifier = Modifier.height(16.dp))
@@ -309,21 +322,19 @@ fun OnboardingPage(page: OnboardingPageInfo, modifier: Modifier = Modifier) {
         painter = painterResource(page.imageRes),
         contentDescription = null,
         contentScale = ContentScale.FillWidth,
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)),
+        modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(20.dp)),
       )
       Spacer(modifier = Modifier.height(16.dp))
     }
 
     // Paragraph description
     if (displayDescription.isNotEmpty()) {
-      Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+      Column(modifier = Modifier.fillMaxWidth()) {
         MarkdownText(
           text = displayDescription,
           textColor = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-    } else {
-      Spacer(modifier = Modifier.weight(1f))
     }
   }
 }

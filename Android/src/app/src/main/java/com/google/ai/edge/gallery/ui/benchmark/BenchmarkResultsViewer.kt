@@ -32,12 +32,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -182,55 +183,62 @@ fun BenchmarkResultsViewer(
   }
 
   Scaffold(
+    containerColor = MaterialTheme.colorScheme.background,
     topBar = {
-      CenterAlignedTopAppBar(
-        // Title label.
-        title = {
-          if (!uiState.running) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              Text(
-                stringResource(R.string.benchmark_results),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.semantics { heading() },
-              )
-              BenchmarkModelPicker(
-                selectedModelName = selectedModelName,
-                modelNames = filterableModelNames,
-                titleResId = R.string.select_model,
-                onSelected = {
-                  showLazyListPlacementAnimation = true
-                  selectedModelName = it
-                  scope.launch {
-                    delay(500)
-                    showLazyListPlacementAnimation = false
-                  }
-                },
-              )
+      Column {
+        CenterAlignedTopAppBar(
+          // Title label.
+          title = {
+            if (!uiState.running) {
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                  stringResource(R.string.benchmark_results),
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  modifier = Modifier.semantics { heading() },
+                )
+              }
             }
-          }
-        },
-        navigationIcon = {
-          if (filteredResults.size > 1) {
-            IconButton(onClick = { showBenchmarkComparisonHelpBottomSheet = true }) {
-              Icon(
-                Icons.AutoMirrored.Outlined.HelpOutline,
-                contentDescription = stringResource(R.string.cd_help),
-              )
+          },
+          navigationIcon = {
+            if (filteredResults.size > 1) {
+              IconButton(onClick = { showBenchmarkComparisonHelpBottomSheet = true }) {
+                Icon(
+                  Icons.AutoMirrored.Outlined.HelpOutline,
+                  contentDescription = stringResource(R.string.cd_help),
+                )
+              }
+            } else {
+              Spacer(modifier = Modifier.size(48.dp))
             }
-          } else {
-            Spacer(modifier = Modifier.size(48.dp))
-          }
-        },
-        // The close button.
-        actions = {
-          if (!uiState.running) {
-            IconButton(onClick = onClose) {
-              Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.close))
+          },
+          // The close button.
+          actions = {
+            if (!uiState.running) {
+              IconButton(onClick = onClose) {
+                Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.close))
+              }
             }
+          },
+        )
+        if (!uiState.running) {
+          Box(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)) {
+            BenchmarkModelPicker(
+              selectedModelName = selectedModelName,
+              modelNames = filterableModelNames,
+              titleResId = R.string.select_model,
+              onSelected = {
+                showLazyListPlacementAnimation = true
+                selectedModelName = it
+                scope.launch {
+                  delay(500)
+                  showLazyListPlacementAnimation = false
+                }
+              },
+            )
           }
-        },
-      )
+        }
+      }
     },
     modifier = Modifier.fillMaxSize(),
   ) { innerPadding ->
@@ -350,7 +358,7 @@ fun BenchmarkResultsViewer(
                     index,
                     result ->
                     // Result card.
-                    var cardModifier = Modifier.clip(RoundedCornerShape(20.dp)).fillMaxWidth()
+                    var cardModifier = Modifier.clip(RoundedCornerShape(24.dp)).fillMaxWidth()
                     if (showLazyListPlacementAnimation) {
                       cardModifier = cardModifier.animateItem()
                     }
@@ -390,7 +398,7 @@ fun BenchmarkResultsViewer(
                                 } else {
                                   null
                                 },
-                              modifier = Modifier.height(24.dp),
+                              modifier = Modifier.heightIn(min = 48.dp),
                             )
                           }
                         },
@@ -462,7 +470,7 @@ fun BenchmarkResultsViewer(
                                   Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier =
-                                      Modifier.height(24.dp)
+                                      Modifier.heightIn(min = 48.dp)
                                         .background(
                                           MaterialTheme.colorScheme.surfaceContainerLowest,
                                           shape = RoundedCornerShape(8.dp),
@@ -619,9 +627,9 @@ fun BenchmarkResultsViewer(
                           }
 
                           // Buttons.
-                          Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End,
+                          FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxWidth(),
                           ) {
                             // Delete.
@@ -644,8 +652,6 @@ fun BenchmarkResultsViewer(
                                 Text(stringResource(R.string.delete))
                               }
                             }
-
-                            Spacer(modifier = Modifier.width(8.dp))
 
                             // Copy
                             val clipboard = LocalClipboard.current

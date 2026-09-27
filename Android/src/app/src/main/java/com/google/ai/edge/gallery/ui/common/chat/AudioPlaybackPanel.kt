@@ -24,6 +24,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -49,7 +50,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -123,6 +123,7 @@ fun AudioPlaybackPanel(
   Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
     // Button to play/stop the clip.
     IconButton(
+      modifier = Modifier.size(48.dp),
       onClick = {
         coroutineScope.launch {
           if (!isPlaying) {
@@ -143,7 +144,7 @@ fun AudioPlaybackPanel(
             isPlaying = false
           }
         }
-      }
+      },
     ) {
       Icon(
         if (isPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
@@ -151,7 +152,8 @@ fun AudioPlaybackPanel(
           stringResource(
             if (isPlaying) R.string.cd_stop_playback_icon else R.string.cd_play_audio_icon
           ),
-        tint = if (onDarkBg) Color.White else MaterialTheme.colorScheme.primary,
+        tint =
+          if (onDarkBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
       )
     }
 
@@ -168,7 +170,9 @@ fun AudioPlaybackPanel(
     Text(
       "${"%.1f".format(durationInSeconds)}s",
       style = MaterialTheme.typography.labelLarge,
-      color = if (onDarkBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+      color =
+        if (onDarkBg) MaterialTheme.colorScheme.onPrimary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(start = 12.dp),
     )
   }
@@ -182,7 +186,8 @@ private fun AmplitudeBarGraph(
   onDarkBg: Boolean = false,
 ) {
   val barColor = MaterialTheme.customColors.waveFormBgColor
-  val progressColor = if (onDarkBg) Color.White else MaterialTheme.colorScheme.primary
+  val progressColor =
+    if (onDarkBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
 
   Canvas(modifier = modifier) {
     val barCount = amplitudeLevels.size

@@ -92,11 +92,11 @@ private const val ROUTE_MODEL = "route_model"
 private const val ROUTE_BENCHMARK = "benchmark"
 private const val ROUTE_MODEL_MANAGER = "model_manager"
 private const val ROUTE_NOTIFICATIONS = "notifications"
-private const val ENTER_ANIMATION_DURATION_MS = 500
+private const val ENTER_ANIMATION_DURATION_MS = 250
 private val ENTER_ANIMATION_EASING = EaseOutExpo
-private const val ENTER_ANIMATION_DELAY_MS = 100
+private const val ENTER_ANIMATION_DELAY_MS = 0
 
-private const val EXIT_ANIMATION_DURATION_MS = 500
+private const val EXIT_ANIMATION_DURATION_MS = 200
 private val EXIT_ANIMATION_EASING = EaseOutExpo
 
 private fun enterTween(): FiniteAnimationSpec<IntOffset> {

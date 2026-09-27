@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_welcome_eyebrow">A LITTLE EVERYDAY HELP</string>
+    <string name="chat_welcome_title">What’s on your mind?</string>
+    <string name="chat_welcome_subtitle">A question, a fresh idea, or a little help getting started. Make yourself at home.</string>
+    <string name="chat_starter_learn">Make something clear</string>
+    <string name="chat_starter_learn_prompt">Explain how a large language model works in simple terms.</string>
+    <string name="chat_starter_write">Find the right words</string>
+    <string name="chat_starter_write_prompt">Help me write a thoughtful thank-you message. Ask me who it is for and what they did.</string>
+    <string name="chat_starter_plan">Make a plan for today</string>
+    <string name="chat_starter_plan_prompt">Help me plan a focused and realistic day. Start by asking what I need to get done.</string>
+    <string name="chat_composer_hint">Message Gallery</string>
+    <string name="chat_setup_title">Let’s get you started.</string>
+    <string name="chat_setup_loading_title">Getting things ready.</string>
+    <string name="chat_setup_description">Download a model to bring your ideas to life. You can switch models anytime from the top bar.</string>
+    <string name="chat_setup_selected_model">SELECTED MODEL</string>
+    <string name="chat_setup_size">%1$s · One-time download</string>
+    <string name="chat_setup_once">One-time download</string>
+    <string name="chat_setup_local_hint">Your model runs right on this device.</string>
+    <string name="chat_setup_unpacking">Preparing your downloaded model…</string>
+    <string name="chat_setup_progress">%1$s of %2$s downloaded</string>
+    <string name="chat_setup_download_failed">The download could not finish. Try again when you are connected.</string>
+</resources>

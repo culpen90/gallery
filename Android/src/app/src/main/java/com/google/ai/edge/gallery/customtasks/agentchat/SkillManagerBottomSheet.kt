@@ -28,6 +28,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,7 +48,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Delete
@@ -103,6 +104,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.GalleryEvent
@@ -261,7 +263,7 @@ fun SkillManagerBottomSheet(
       )
     },
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor = MaterialTheme.colorScheme.background,
   ) {
     Box(modifier = Modifier.fillMaxSize()) {
       // Spinner when loading.
@@ -280,7 +282,7 @@ fun SkillManagerBottomSheet(
 
         Column(
           modifier =
-            Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
+            Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp).fillMaxSize().pointerInput(
               Unit
             ) {
               detectTapGestures(onTap = { focusManager.clearFocus() })
@@ -330,11 +332,11 @@ fun SkillManagerBottomSheet(
             ) {
               Column(modifier = Modifier.weight(1f)) {
                 Text(
-                  stringResource(R.string.manage_skills),
-                  style = MaterialTheme.typography.titleLarge,
+                  stringResource(R.string.support_skills_title),
+                  style = MaterialTheme.typography.headlineSmall,
                 )
                 Text(
-                  stringResource(R.string.manage_skills_description),
+                  stringResource(R.string.support_skills_description),
                   style = MaterialTheme.typography.bodyMedium,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -371,13 +373,16 @@ fun SkillManagerBottomSheet(
               value = searchQuery,
               onValueChange = { searchQuery = it },
               modifier = Modifier.weight(1f).clearFocusOnKeyboardDismiss(),
-              shape = CircleShape,
+              shape = RoundedCornerShape(20.dp),
               placeholder = { Text(stringResource(R.string.search_skill)) },
               leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
               trailingIcon = {
                 if (searchQuery.trim().isNotEmpty()) {
                   IconButton(onClick = { searchQuery = "" }) {
-                    Icon(Icons.Outlined.Cancel, contentDescription = null)
+                    Icon(
+                      Icons.Outlined.Cancel,
+                      contentDescription = stringResource(R.string.support_clear_search),
+                    )
                   }
                 }
               },
@@ -412,9 +417,9 @@ fun SkillManagerBottomSheet(
           }
 
           AnimatedVisibility(visible = searchQuery.isEmpty()) {
-            Row(
+            FlowRow(
               horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
+              verticalArrangement = Arrangement.spacedBy(4.dp),
               modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             ) {
               // Skill count.
@@ -428,7 +433,7 @@ fun SkillManagerBottomSheet(
               )
 
               // Select all / Deselect all.
-              Row(verticalAlignment = Alignment.CenterVertically) {
+              FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(
                   onClick = { skillManagerViewModel.setAllSkillsSelected(selected = true) }
                 ) {
@@ -458,6 +463,37 @@ fun SkillManagerBottomSheet(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
               ) {
+                if (filteredSkills.isEmpty()) {
+                  item(key = "search_empty") {
+                    Column(
+                      modifier =
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 40.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally,
+                      verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                      Icon(
+                        Icons.Rounded.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                      )
+                      Text(
+                        stringResource(R.string.support_no_matching_skills),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                      )
+                      Text(
+                        stringResource(R.string.support_search_again),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                      )
+                      TextButton(onClick = { searchQuery = "" }) {
+                        Text(stringResource(R.string.support_clear_search))
+                      }
+                    }
+                  }
+                }
                 if (builtInSkills.isNotEmpty()) {
                   item(key = "built_in_header") {
                     Row(
@@ -795,7 +831,7 @@ fun ViewCommunitySkillsBottomSheet(onDismiss: () -> Unit) {
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor = MaterialTheme.colorScheme.background,
   ) {
     Column(modifier = Modifier.fillMaxSize()) {
       // Header section with title, description, and close button.
@@ -857,8 +893,8 @@ private fun SkillItemRow(
     modifier =
       Modifier.fillMaxWidth()
         .then(if (inMultiSelectMode && skill.builtIn) Modifier.alpha(0.5f) else Modifier)
-        .clip(shape = RoundedCornerShape(20.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+        .clip(shape = RoundedCornerShape(24.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerLow)
         .then(
           if (isCustom) {
             Modifier.combinedClickable(
@@ -871,7 +907,7 @@ private fun SkillItemRow(
             )
           } else Modifier
         )
-        .padding(horizontal = 16.dp, vertical = 12.dp),
+        .padding(horizontal = 20.dp, vertical = 16.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     if (inMultiSelectMode && isCustom) {
@@ -891,7 +927,8 @@ private fun SkillItemRow(
         ) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             val hasHomepage = !skill.homepage.isBlank()
-            val textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+            val textStyle =
+              MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
 
             if (hasHomepage) {
               Row(
@@ -921,7 +958,7 @@ private fun SkillItemRow(
           }
           Text(
             (skill.description ?: "").replace("\n", " "),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
@@ -938,15 +975,15 @@ private fun SkillItemRow(
 
       // Buttons row.
       AnimatedVisibility(visible = !inMultiSelectMode) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.Start,
-          modifier = Modifier.padding(top = 8.dp),
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+          modifier = Modifier.padding(top = 12.dp),
         ) {
           // Edit.
           FilledTonalButton(
             onClick = onViewClick,
-            modifier = Modifier.height(32.dp).padding(end = 8.dp),
+            modifier = Modifier.heightIn(min = 48.dp),
             contentPadding = BUTTON_CONTENT_PADDING,
           ) {
             Icon(
@@ -956,7 +993,7 @@ private fun SkillItemRow(
               modifier = Modifier.size(18.dp),
             )
             Text(
-              stringResource(R.string.view),
+              stringResource(R.string.support_skill_details),
               style = MaterialTheme.typography.labelMedium,
               modifier = Modifier.padding(start = 4.dp),
             )
@@ -966,7 +1003,7 @@ private fun SkillItemRow(
             // Edit secret.
             FilledTonalButton(
               onClick = onSecretClick,
-              modifier = Modifier.height(32.dp).padding(end = 8.dp),
+              modifier = Modifier.heightIn(min = 48.dp),
               contentPadding = BUTTON_CONTENT_PADDING,
             ) {
               Icon(
@@ -988,7 +1025,7 @@ private fun SkillItemRow(
             // Delete.
             OutlinedButton(
               onClick = onDeleteClick,
-              modifier = Modifier.height(32.dp),
+              modifier = Modifier.heightIn(min = 48.dp),
               contentPadding = BUTTON_CONTENT_PADDING,
             ) {
               Icon(
@@ -1028,17 +1065,19 @@ private fun AddSkillOptionsBottomSheet(
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
       Text(
         stringResource(R.string.add_skill),
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(bottom = 16.dp).padding(horizontal = 16.dp),
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.padding(bottom = 20.dp),
       )
       Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ADD_SKILL_OPTIONS.forEach { option ->
           Row(
             modifier =
               Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .clickable {
                   onOptionSelected(option)
                   firebaseAnalytics?.logEvent(
@@ -1050,7 +1089,7 @@ private fun AddSkillOptionsBottomSheet(
                   )
                   onDismiss()
                 }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
           ) {
             Column(modifier = Modifier.fillMaxWidth()) {
               // Row for Icon and Title

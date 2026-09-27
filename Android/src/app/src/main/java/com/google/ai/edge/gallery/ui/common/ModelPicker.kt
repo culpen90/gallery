@@ -22,15 +22,19 @@ package com.google.ai.edge.gallery.ui.common
 // import com.google.ai.edge.gallery.ui.theme.GalleryTheme
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
@@ -44,19 +48,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.common.modelitem.StatusIcon
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
 
 @Composable
 fun ModelPicker(
@@ -69,83 +72,104 @@ fun ModelPicker(
   var modelToPick by remember { mutableStateOf<Model?>(null) }
   val context = LocalContext.current
 
-  Column(modifier = Modifier.padding(bottom = 8.dp)) {
-    // Title
-    Row(
-      modifier = Modifier.padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 4.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+  Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
+    Column(
+      modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-      Icon(
-        task.icon ?: ImageVector.vectorResource(task.iconVectorResourceId!!),
-        tint = getTaskIconColor(task = task),
-        modifier = Modifier.size(16.dp),
-        contentDescription = null,
-      )
+      Text("Choose a model", style = MaterialTheme.typography.headlineSmall)
       Text(
-        "${task.label} models",
-        modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.titleMedium,
-        color = getTaskIconColor(task = task),
+        "Switch the model for this conversation.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
-
-    // Model list.
-    for (model in task.models) {
-      val selected = model.name == modelManagerUiState.selectedModel.name
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier =
-          Modifier.fillMaxWidth()
-            .clickable {
-              // Show memory warning before proceeding.
-              if (isMemoryLow(context = context, model = model)) {
-                modelToPick = model
-                showMemoryWarning = true
-              } else {
-                onModelSelected(model)
+    LazyColumn(
+      modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
+      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      items(task.models, key = { it.name }) { model ->
+        val selected = model.name == modelManagerUiState.selectedModel.name
+        val downloadStatus = modelManagerUiState.modelDownloadStatus[model.name]
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          modifier =
+            Modifier.fillMaxWidth()
+              .clip(RoundedCornerShape(20.dp))
+              .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerLow
+              )
+              .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = {
+                  if (isMemoryLow(context = context, model = model)) {
+                    modelToPick = model
+                    showMemoryWarning = true
+                  } else {
+                    onModelSelected(model)
+                  }
+                },
+              )
+              .heightIn(min = 80.dp)
+              .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+          StatusIcon(task = task, model = model, downloadStatus = downloadStatus)
+          Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+              model.displayName.ifEmpty { model.name },
+              style = MaterialTheme.typography.titleSmall,
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis,
+              color =
+                if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurface,
+            )
+            val details = buildList {
+              add(
+                when (downloadStatus?.status) {
+                  ModelDownloadStatusType.SUCCEEDED -> "Ready on device"
+                  ModelDownloadStatusType.IN_PROGRESS -> "Downloading…"
+                  ModelDownloadStatusType.PARTIALLY_DOWNLOADED -> "Resuming download…"
+                  ModelDownloadStatusType.UNZIPPING -> "Preparing model…"
+                  ModelDownloadStatusType.FAILED -> "Download needs attention"
+                  else -> "Download to use"
+                }
+              )
+              if (!model.isAiCore && model.downloadInfo.sizeInBytes > 0L) {
+                add(model.downloadInfo.sizeInBytes.humanReadableSize())
               }
             }
-            .background(
-              if (selected) MaterialTheme.colorScheme.surfaceContainer else Color.Transparent
+            Text(
+              details.joinToString(" · "),
+              style = MaterialTheme.typography.bodySmall,
+              color =
+                if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-      ) {
-        Spacer(modifier = Modifier.width(24.dp))
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            model.displayName.ifEmpty { model.name },
-            style = MaterialTheme.typography.bodyMedium,
-          )
-          if (!model.isAiCore) {
-            Row(
-              horizontalArrangement = Arrangement.spacedBy(4.dp),
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              StatusIcon(
-                task = task,
-                model = model,
-                downloadStatus = modelManagerUiState.modelDownloadStatus[model.name],
-              )
+            val capabilities = buildList {
+              if (model.supportImage) add("Images")
+              if (model.supportAudio) add("Audio")
+            }
+            if (capabilities.isNotEmpty()) {
               Text(
-                if (model.downloadInfo.localRelativeDirPathOverride.isEmpty()) {
-                  model.downloadInfo.sizeInBytes.humanReadableSize()
-                } else {
-                  "{ext_file_dir}/${model.downloadInfo.localRelativeDirPathOverride}"
-                },
+                capabilities.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = labelSmallNarrow.copy(lineHeight = 10.sp),
               )
             }
           }
-        }
-        if (selected) {
-          Icon(
-            Icons.Filled.CheckCircle,
-            modifier = Modifier.size(16.dp),
-            contentDescription = stringResource(R.string.cd_selected_icon),
-          )
+          if (selected) {
+            Icon(
+              Icons.Filled.CheckCircle,
+              modifier = Modifier.size(24.dp),
+              tint = MaterialTheme.colorScheme.primary,
+              contentDescription = stringResource(R.string.cd_selected_icon),
+            )
+          }
         }
       }
     }

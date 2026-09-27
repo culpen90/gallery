@@ -16,27 +16,17 @@
 
 package com.google.ai.edge.gallery.ui.modelmanager
 
-// import androidx.compose.ui.tooling.preview.Preview
-// import com.google.ai.edge.gallery.ui.preview.PreviewModelManagerViewModel
-// import com.google.ai.edge.gallery.ui.preview.TASK_TEST1
-// import com.google.ai.edge.gallery.ui.theme.GalleryTheme
-
-import androidx.compose.ui.platform.LocalContext
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
@@ -50,39 +40,21 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.supportModelBenchmark
 import com.google.ai.edge.gallery.ui.common.ClickableLink
-import com.google.ai.edge.gallery.ui.common.RevealingText
 import com.google.ai.edge.gallery.ui.common.TaskIcon
-import com.google.ai.edge.gallery.ui.common.getTaskBgColor
-import com.google.ai.edge.gallery.ui.common.getTaskBgGradientColors
 import com.google.ai.edge.gallery.ui.common.modelitem.ModelItem
 import com.google.ai.edge.gallery.ui.common.rememberDelayedAnimationProgress
-import com.google.ai.edge.gallery.ui.theme.bodyLargeNarrow
-import com.google.ai.edge.gallery.ui.theme.headlineLargeMedium
 
-private const val TAG = "AGModelList"
-private val CONTENT_ANIMATION_OFFSET = 16.dp
-private const val ANIMATION_INIT_DELAY = 80L
-private const val TASK_DESCRIPTION_SECTION_ANIMATION_START = 400
-private const val MODEL_LIST_ANIMATION_START = TASK_DESCRIPTION_SECTION_ANIMATION_START + 150
-private const val DEFAULT_ANIMATION_DURATION = 700
-private const val TASK_ICON_ANIMATION_DURATION = 1100
-
-/** The list of models in the model manager. */
+/** A focused model library for a particular task. */
 @Composable
 fun ModelList(
   task: Task,
@@ -93,323 +65,150 @@ fun ModelList(
   onBenchmarkClicked: (Model) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  // This is just to update "models" list when task.updateTrigger is updated so that the UI can
-  // be properly updated.
-  val models by
+  val allModels by
     remember(task) {
       derivedStateOf {
-        val trigger = task.updateTrigger.value
-        if (trigger >= 0) {
-          task.models.toList().filter { !it.downloadInfo.imported }
-        } else {
-          listOf()
-        }
+        task.updateTrigger.value
+        task.models.toList()
       }
     }
-  val importedModels by
-    remember(task) {
-      derivedStateOf {
-        val trigger = task.updateTrigger.value
-        if (trigger >= 0) {
-          task.models.toList().filter { it.downloadInfo.imported }
-        } else {
-          listOf()
-        }
-      }
-    }
-  val modelVariants by
-    remember(task) {
-      derivedStateOf {
-        val trigger = task.updateTrigger.value
-        if (trigger >= 0) {
-          task.models
-            .toList()
-            .filter { it.isVariant }
-            .groupBy { it.hierarchy.parentModelName.orEmpty() }
-        } else {
-          mapOf()
-        }
-      }
-    }
-
-  val listState = rememberLazyListState()
-
-  val taskIconProgress =
-    if (!enableAnimation) {
-      1f
-    } else {
+  val models = allModels.filter { !it.isVariant && !it.downloadInfo.imported }
+  val importedModels = allModels.filter { !it.isVariant && it.downloadInfo.imported }
+  val modelVariants =
+    allModels.filter { it.isVariant }.groupBy { it.hierarchy.parentModelName.orEmpty() }
+  val expandedStates = remember { mutableStateMapOf<String, Boolean>() }
+  val progress =
+    if (enableAnimation) {
       rememberDelayedAnimationProgress(
-        initialDelay = ANIMATION_INIT_DELAY,
-        animationDurationMs = TASK_ICON_ANIMATION_DURATION,
-        animationLabel = "task icon",
+        initialDelay = 0,
+        animationDurationMs = 220,
+        animationLabel = "models",
       )
-    }
+    } else 1f
 
-  val taskLabelProgress =
-    if (!enableAnimation) {
-      1f
-    } else {
-      rememberDelayedAnimationProgress(
-        initialDelay = ANIMATION_INIT_DELAY + 300,
-        animationDurationMs = TASK_ICON_ANIMATION_DURATION,
-        animationLabel = "task label",
-      )
-    }
-
-  val descriptionProgress =
-    if (!enableAnimation) {
-      1f
-    } else {
-      rememberDelayedAnimationProgress(
-        initialDelay = ANIMATION_INIT_DELAY + TASK_DESCRIPTION_SECTION_ANIMATION_START,
-        animationDurationMs = DEFAULT_ANIMATION_DURATION,
-        animationLabel = "description",
-      )
-    }
-
-  val modelListProgress =
-    if (!enableAnimation) {
-      1f
-    } else {
-      rememberDelayedAnimationProgress(
-        initialDelay = ANIMATION_INIT_DELAY + MODEL_LIST_ANIMATION_START,
-        animationDurationMs = DEFAULT_ANIMATION_DURATION,
-        animationLabel = "model_list",
-      )
-    }
-  val modelItemExpandedStates = remember { mutableStateMapOf<String, Boolean>() }
-
-  Box(
-    contentAlignment = Alignment.BottomEnd,
-    modifier = Modifier.background(color = getTaskBgColor(task = task)),
+  LazyColumn(
+    modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentPadding =
+      PaddingValues(
+        start = 20.dp,
+        end = 20.dp,
+        top = contentPadding.calculateTopPadding() + 16.dp,
+        bottom = contentPadding.calculateBottomPadding() + 24.dp,
+      ),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    LazyColumn(
-      modifier = modifier.padding(horizontal = 16.dp),
-      contentPadding = contentPadding,
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-      state = listState,
-    ) {
-      // Task header area.
-      item(key = "taskHeader") {
-        Spacer(modifier = Modifier.height(32.dp))
+    item(key = "task_header") {
+      Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+      ) {
         Column(
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+          modifier = Modifier.fillMaxWidth().padding(24.dp),
+          verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-          // Task icon.
-          TaskIcon(task = task, width = 64.dp, animationProgress = taskIconProgress)
-
-          // Task name.
-          Box(
-            modifier =
-              Modifier.offset(x = (20f * (1f - taskIconProgress)).dp).semantics {
-                contentDescription = task.label
-              }
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
           ) {
-            RevealingText(
-              text = task.label,
-              style =
-                headlineLargeMedium.copy(
-                  brush = Brush.linearGradient(getTaskBgGradientColors(task = task))
-                ),
-              textAlign = TextAlign.Center,
-              animationProgress = taskIconProgress,
-            )
-            RevealingText(
-              text = task.label,
-              style = headlineLargeMedium,
-              textAlign = TextAlign.Center,
-              animationProgress = taskLabelProgress,
-            )
+            TaskIcon(task = task, width = 44.dp)
+            Column(
+              modifier = Modifier.weight(1f),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              Text(
+                task.label,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.semantics { heading() },
+              )
+              Text(
+                "${models.size + importedModels.size} models available",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
           }
-
-          // Experimental pill
+          Text(
+            task.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
           if (task.experimental) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-              Surface(
-                shape = CircleShape, // This creates the "pill" effect
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier =
-                  Modifier.align(Alignment.Center).graphicsLayer {
-                    alpha = descriptionProgress
-                    translationY = (CONTENT_ANIMATION_OFFSET * (1 - descriptionProgress)).toPx()
-                  },
-              ) {
-                Text(
-                  text = stringResource(R.string.model_list_experimental_label),
-                  style = bodyLargeNarrow.copy(fontWeight = FontWeight.Bold),
-                  modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+              Text(
+                stringResource(R.string.model_list_experimental_label),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+              )
+            }
+          }
+          if (task.docUrl.isNotEmpty() || task.sourceCodeUrl.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              if (task.docUrl.isNotEmpty()) {
+                ClickableLink(
+                  task.docUrl,
+                  linkText = stringResource(R.string.api_doc),
+                  icon = Icons.Outlined.Description,
+                )
+              }
+              if (task.sourceCodeUrl.isNotEmpty()) {
+                ClickableLink(
+                  task.sourceCodeUrl,
+                  linkText = stringResource(R.string.example_code),
+                  icon = Icons.Outlined.Code,
                 )
               }
             }
           }
-
-          // Description.
-          Text(
-            task.description,
-            textAlign = TextAlign.Center,
-            style = bodyLargeNarrow,
-            modifier =
-              Modifier.graphicsLayer {
-                alpha = descriptionProgress
-                translationY = (CONTENT_ANIMATION_OFFSET * (1 - descriptionProgress)).toPx()
-              },
-          )
-
-          // Urls.
-          if (task.docUrl.isNotEmpty() || task.sourceCodeUrl.isNotEmpty()) {
-            Box(
-              modifier =
-                Modifier.padding(vertical = 8.dp).graphicsLayer {
-                  alpha = descriptionProgress
-                  translationY = (CONTENT_ANIMATION_OFFSET * (1 - descriptionProgress)).toPx()
-                }
-            ) {
-              Column(
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-              ) {
-                if (task.docUrl.isNotEmpty()) {
-                  ClickableLink(
-                    url = task.docUrl,
-                    linkText = stringResource(R.string.api_doc),
-                    icon = Icons.Outlined.Description,
-                  )
-                }
-                if (task.sourceCodeUrl.isNotEmpty()) {
-                  ClickableLink(
-                    url = task.sourceCodeUrl,
-                    linkText = stringResource(R.string.example_code),
-                    icon = Icons.Outlined.Code,
-                  )
-                }
-              }
-            }
-          }
-
-          // Models available.
-          val resources = LocalContext.current.resources
-          Text(
-            resources.getQuantityString(
-              R.plurals.model_list_number_of_models_available,
-              models.size + importedModels.size,
-              models.size + importedModels.size,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier =
-              Modifier.alpha(0.6f).graphicsLayer {
-                alpha = descriptionProgress * 0.6f
-                translationY = (CONTENT_ANIMATION_OFFSET * (1 - descriptionProgress)).toPx()
-              },
-          )
-        }
-      }
-
-      // Title for recommended models.
-      if (!models.isEmpty()) {
-        item(key = "recommendedModelsTitle") {
-          Text(
-            stringResource(R.string.model_list_recommended_models_title),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.labelLarge,
-            modifier =
-              Modifier.padding(horizontal = 16.dp, vertical = 8.dp).graphicsLayer {
-                alpha = modelListProgress
-                translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
-              },
-          )
-        }
-      }
-
-      // List of models within a task.
-      items(items = models) { model ->
-        if (!model.isVariant) {
-          val expanded = modelItemExpandedStates.getOrDefault(model.name, null)
-          ModelItem(
-            model = model,
-            modelVariants = modelVariants.getOrDefault(model.name, listOf()),
-            task = task,
-            modelManagerViewModel = modelManagerViewModel,
-            onModelClicked = onModelClicked,
-            onBenchmarkClicked = onBenchmarkClicked,
-            expanded = expanded,
-            onExpanded = { modelItemExpandedStates[model.name] = it },
-            isBenchmarkSupported = model.supportModelBenchmark,
-            modifier =
-              Modifier.graphicsLayer {
-                alpha = modelListProgress
-                translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
-              },
-          )
-        }
-      }
-
-      // Title for imported models.
-      if (importedModels.isNotEmpty()) {
-        item(key = "importedModelsTitle") {
-          Text(
-            stringResource(R.string.model_list_imported_models_title),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.labelLarge,
-            modifier =
-              Modifier.padding(horizontal = 16.dp)
-                .padding(top = 32.dp, bottom = 8.dp)
-                .graphicsLayer {
-                  alpha = modelListProgress
-                  translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
-                },
-          )
-        }
-      }
-
-      // List of imported models within a task.
-      items(items = importedModels, key = { it.name }) { model ->
-        Box {
-          ModelItem(
-            model = model,
-            task = task,
-            modelManagerViewModel = modelManagerViewModel,
-            onModelClicked = onModelClicked,
-            onBenchmarkClicked = onBenchmarkClicked,
-            isBenchmarkSupported = model.supportModelBenchmark,
-            modifier =
-              Modifier.graphicsLayer {
-                alpha = modelListProgress
-                translationY = (CONTENT_ANIMATION_OFFSET * (1 - modelListProgress)).toPx()
-              },
-          )
         }
       }
     }
-
-    // Gradient overlay at the bottom.
-    Box(
-      modifier =
-        Modifier.fillMaxWidth()
-          .height(contentPadding.calculateBottomPadding())
-          .background(
-            Brush.verticalGradient(
-              colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceContainer)
-            )
-          )
-          .align(Alignment.BottomCenter)
-    )
+    if (models.isNotEmpty()) {
+      item(key = "recommended_title") {
+        Text(
+          stringResource(R.string.model_list_recommended_models_title),
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).semantics { heading() },
+        )
+      }
+    }
+    items(models, key = { "model_${it.name}" }) { model ->
+      ModelItem(
+        model = model,
+        modelVariants = modelVariants.getOrDefault(model.name, emptyList()),
+        task = task,
+        modelManagerViewModel = modelManagerViewModel,
+        onModelClicked = onModelClicked,
+        onBenchmarkClicked = onBenchmarkClicked,
+        expanded = expandedStates.getOrDefault(model.name, false),
+        onExpanded = { expandedStates[model.name] = it },
+        isBenchmarkSupported = model.supportModelBenchmark,
+        modifier = Modifier.graphicsLayer { alpha = progress },
+      )
+    }
+    if (importedModels.isNotEmpty()) {
+      item(key = "imported_title") {
+        Text(
+          stringResource(R.string.model_list_imported_models_title),
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).semantics { heading() },
+        )
+      }
+    }
+    items(importedModels, key = { "imported_${it.name}" }) { model ->
+      ModelItem(
+        model = model,
+        modelVariants = modelVariants.getOrDefault(model.name, emptyList()),
+        task = task,
+        modelManagerViewModel = modelManagerViewModel,
+        onModelClicked = onModelClicked,
+        onBenchmarkClicked = onBenchmarkClicked,
+        expanded = true,
+        isBenchmarkSupported = model.supportModelBenchmark,
+        modifier = Modifier.graphicsLayer { alpha = progress },
+      )
+    }
   }
 }
-
-// @Preview(showBackground = true)
-// @Composable
-// fun ModelListPreview() {
-//   val context = LocalContext.current
-
-//   GalleryTheme {
-//     ModelList(
-//       task = TASK_TEST1,
-//       modelManagerViewModel = PreviewModelManagerViewModel(context = context),
-//       onModelClicked = {},
-//       contentPadding = PaddingValues(all = 16.dp),
-//     )
-//   }
-// }

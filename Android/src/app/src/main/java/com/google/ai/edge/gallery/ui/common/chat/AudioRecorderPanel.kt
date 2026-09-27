@@ -30,9 +30,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -69,11 +69,10 @@ import com.google.ai.edge.gallery.common.calculatePeakAmplitude
 import com.google.ai.edge.gallery.data.MAX_AUDIO_CLIP_DURATION_SEC
 import com.google.ai.edge.gallery.data.SAMPLE_RATE
 import com.google.ai.edge.gallery.data.Task
-import com.google.ai.edge.gallery.ui.common.getTaskIconColor
 import com.google.ai.edge.gallery.ui.theme.customColors
 import java.io.ByteArrayOutputStream
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,7 +81,6 @@ private const val TAG = "AGAudioRecorderPanel"
 
 private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
 private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-private const val PANEL_ALPHA = 0.7f
 
 /**
  * This composable function creates a UI panel for audio recording. It handles the UI state (e.g.,
@@ -179,12 +177,13 @@ fun AudioRecorderPanel(
   }
 
   Row(
-    modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
-    horizontalArrangement = Arrangement.spacedBy(4.dp),
+    modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     // Close button.
     IconButton(
+      modifier = Modifier.size(48.dp),
       onClick = {
         if (isRecording) {
           val unused = stopRecording(audioRecordState = audioRecordState, audioStream = audioStream)
@@ -194,7 +193,7 @@ fun AudioRecorderPanel(
       },
       colors =
         IconButtonDefaults.iconButtonColors(
-          containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = PANEL_ALPHA)
+          containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
     ) {
       Icon(
@@ -207,10 +206,10 @@ fun AudioRecorderPanel(
     // Controls.
     Row(
       modifier =
-        Modifier.clip(CircleShape)
+        Modifier.clip(RoundedCornerShape(28.dp))
           .weight(1f)
-          .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = PANEL_ALPHA))
-          .padding(start = 12.dp),
+          .background(MaterialTheme.colorScheme.surfaceContainerLow)
+          .padding(start = 20.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -218,13 +217,15 @@ fun AudioRecorderPanel(
       if (!isRecording) {
         Text(
           stringResource(R.string.audio_scribe_tap_to_record),
-          style = MaterialTheme.typography.labelMedium,
+          modifier = Modifier.weight(1f).padding(end = 8.dp),
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
       // Elapsed seconds when recording in progress.
       else {
         Row(
+          modifier = Modifier.weight(1f),
           horizontalArrangement = Arrangement.spacedBy(12.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -239,7 +240,7 @@ fun AudioRecorderPanel(
 
       // Record/send button.
       IconButton(
-        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+        modifier = Modifier.size(48.dp).semantics { liveRegion = LiveRegionMode.Assertive },
         onClick = {
           if (!isRecording) {
             beginRecording()
@@ -250,15 +251,16 @@ fun AudioRecorderPanel(
             onSendAudioClip(curRecordedBytes)
           }
         },
-        colors = IconButtonDefaults.iconButtonColors(containerColor = getTaskIconColor(task = task)),
+        colors =
+          IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary),
       ) {
         Icon(
-          if (isRecording) Icons.Rounded.ArrowUpward else Icons.Rounded.Mic,
+          if (isRecording) Icons.Rounded.Done else Icons.Rounded.Mic,
           contentDescription =
             stringResource(
               if (isRecording) R.string.audio_scribe_stop_recording else R.string.cd_start_recording
             ),
-          tint = Color.White,
+          tint = MaterialTheme.colorScheme.onPrimary,
         )
       }
     }
@@ -299,7 +301,10 @@ private suspend fun startRecording(
     launch(Dispatchers.IO) {
       val startMs = System.currentTimeMillis()
       elapsedMs.longValue = 0L
-      while (audioRecordState.value === recorder && recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+      while (
+        audioRecordState.value === recorder &&
+          recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING
+      ) {
         val bytesRead =
           try {
             recorder.read(buffer, 0, buffer.size)

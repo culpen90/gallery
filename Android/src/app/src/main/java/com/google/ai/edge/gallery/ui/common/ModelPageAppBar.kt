@@ -17,36 +17,33 @@
 package com.google.ai.edge.gallery.ui.common
 
 import android.os.Bundle
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.GalleryEvent
@@ -62,7 +59,6 @@ import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.convertValueToTargetType
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-
 import com.google.ai.edge.litertlm.Capabilities
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,101 +92,68 @@ fun ModelPageAppBar(
   val isModelInitializing = initStatus is Model.InitializationStatus.Initializing
   val isModelInitialized = initStatus is Model.InitializationStatus.Initialized
 
-  CenterAlignedTopAppBar(
-    title = {
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-      ) {
-        // Task type.
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-          val tintColor =
-            if (useThemeColor) MaterialTheme.colorScheme.onSurface
-            else getTaskIconColor(task = task)
-          val icon = task.icon ?: task.iconVectorResourceId?.let { ImageVector.vectorResource(it) }
-          if (icon != null && !unifiedInterface) {
-            Icon(icon, tint = tintColor, modifier = Modifier.size(24.dp), contentDescription = null)
-          }
-          Text(
-            if (unifiedInterface) stringResource(R.string.unified_chat_title) else task.label,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (unifiedInterface) MaterialTheme.colorScheme.onSurface else tintColor,
-          )
-        }
-
-        // Model chips pager.
-        if (!hideModelSelector) {
-          val enableModelPickerChip = !isModelInitializing && !inProgress
-          ModelPickerChip(
-            enabled = enableModelPickerChip,
-            task = task,
-            initialModel = model,
-            modelManagerViewModel = modelManagerViewModel,
-            onModelSelected = onModelSelected,
-          )
-        }
-      }
-    },
-    modifier = modifier,
-    // The back button.
-    navigationIcon = {
-      val enableBackButton = !isModelInitializing && !inProgress
-      IconButton(onClick = onBackClicked, enabled = enableBackButton) {
-        Icon(
-          imageVector = if (unifiedInterface) Icons.Rounded.Menu else Icons.AutoMirrored.Rounded.ArrowBack,
-          contentDescription = stringResource(
-            if (unifiedInterface) R.string.unified_chat_menu else R.string.cd_navigate_back_icon
-          ),
+  Column(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
+    TopAppBar(
+      title = {
+        Text(
+          if (unifiedInterface) stringResource(R.string.redesign_gallery) else task.label,
+          style = MaterialTheme.typography.titleLarge,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
         )
-      }
-    },
-    // The config button for the model (if existed).
-    actions = {
-      val downloadSucceeded = curDownloadStatus?.status == ModelDownloadStatusType.SUCCEEDED
-      val showConfigButton = model.configs.isNotEmpty() && downloadSucceeded
-      Box(modifier = Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-        var configButtonOffset = 0.dp
-        if (showConfigButton && shouldShowHistoryButton) {
-          configButtonOffset = (-40).dp
+      },
+      colors =
+        TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+      navigationIcon = {
+        IconButton(onClick = onBackClicked, enabled = !isModelInitializing && !inProgress) {
+          Icon(
+            imageVector =
+              if (unifiedInterface) Icons.Rounded.Menu else Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription =
+              stringResource(
+                if (unifiedInterface) R.string.unified_chat_menu else R.string.cd_navigate_back_icon
+              ),
+          )
         }
-        if (showConfigButton) {
-          val enableConfigButton = !isModelInitializing && !inProgress && isModelInitialized
-          IconButton(
-            onClick = { showConfigDialog = true },
-            enabled = enableConfigButton,
-            modifier =
-              Modifier.offset(x = configButtonOffset).alpha(if (!enableConfigButton) 0.5f else 1f),
-          ) {
-            Icon(
-              imageVector = Icons.Rounded.Tune,
-              contentDescription = stringResource(R.string.cd_model_settings_icon),
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(20.dp),
-            )
-          }
-        }
+      },
+      actions = {
+        val downloadSucceeded = curDownloadStatus?.status == ModelDownloadStatusType.SUCCEEDED
         if (downloadSucceeded && shouldShowHistoryButton) {
-          val enableHistoryButton =
-            !isModelInitializing && !modelPreparing && !inProgress && isModelInitialized
           IconButton(
             onClick = { onHistoryClicked(model) },
-            enabled = enableHistoryButton,
-            modifier = Modifier.alpha(if (!enableHistoryButton) 0.5f else 1f),
+            enabled = !isModelInitializing && !modelPreparing && !inProgress && isModelInitialized,
           ) {
             Icon(
-              imageVector = Icons.Rounded.History,
+              Icons.Rounded.History,
               contentDescription = stringResource(R.string.cd_chat_history),
-              tint = MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(20.dp),
             )
           }
         }
+        if (model.configs.isNotEmpty() && downloadSucceeded) {
+          IconButton(
+            onClick = { showConfigDialog = true },
+            enabled = !isModelInitializing && !inProgress && isModelInitialized,
+          ) {
+            Icon(
+              Icons.Rounded.Tune,
+              contentDescription = stringResource(R.string.cd_model_settings_icon),
+            )
+          }
+        }
+      },
+    )
+    if (!hideModelSelector) {
+      Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 8.dp)) {
+        ModelPickerChip(
+          enabled = !isModelInitializing && !inProgress,
+          task = task,
+          initialModel = model,
+          modelManagerViewModel = modelManagerViewModel,
+          onModelSelected = onModelSelected,
+        )
       }
-    },
-  )
+    }
+  }
 
   // Config dialog.
   if (showConfigDialog) {

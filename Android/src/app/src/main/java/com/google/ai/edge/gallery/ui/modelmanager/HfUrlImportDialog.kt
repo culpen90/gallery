@@ -19,6 +19,8 @@ package com.google.ai.edge.gallery.ui.modelmanager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.ui.common.buildTrackableUrlAnnotatedString
@@ -58,7 +61,11 @@ fun HuggingFaceUrlDialog(
     text = {
       HuggingFaceUrlDialogContent(urlInput = urlInput, onUrlInputChange = onUrlInputChange)
     },
-    confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.next)) } },
+    confirmButton = {
+      Button(onClick = onConfirm, enabled = urlInput.isNotBlank()) {
+        Text(stringResource(R.string.next))
+      }
+    },
     dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     modifier = modifier,
   )
@@ -81,7 +88,7 @@ fun HuggingFaceUrlDialogContent(
   onUrlInputChange: (String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
     Text(
       buildAnnotatedString {
         append(stringResource(R.string.enter_hugging_face_url))
@@ -99,6 +106,8 @@ fun HuggingFaceUrlDialogContent(
       modifier = Modifier.fillMaxWidth(),
       placeholder = { Text(stringResource(R.string.hugging_face_url_placeholder)) },
       singleLine = true,
+      shape = RoundedCornerShape(16.dp),
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
     )
   }
 }

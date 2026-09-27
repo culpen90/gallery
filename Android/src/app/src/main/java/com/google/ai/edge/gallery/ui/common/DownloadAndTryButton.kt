@@ -30,7 +30,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -330,25 +331,29 @@ fun DownloadAndTryButton(
   }
 
   if (!showDownloadProgress) {
-    var buttonModifier: Modifier = modifier.height(42.dp)
+    var buttonModifier: Modifier = modifier.heightIn(min = 48.dp)
     if (!compact) {
       buttonModifier = buttonModifier.then(modifierWhenExpanded)
     }
+    val isPrimaryAction =
+      (downloadSucceeded && canShowTryIt) ||
+        model.downloadInfo.localRelativeDirPathOverride.isNotEmpty()
+    val actionLabel =
+      stringResource(
+        if (needToDownloadFirst) R.string.download
+        else if (model.isForTestOnly) R.string.test_it else R.string.try_it
+      )
     Button(
       modifier = buttonModifier,
+      enabled = enabled && !checkingToken,
       colors =
         ButtonDefaults.buttonColors(
           containerColor =
-            if (
-              (!downloadSucceeded || !canShowTryIt) &&
-                model.downloadInfo.localRelativeDirPathOverride.isEmpty()
-            ) {
-              downloadButtonBackgroundColor
-            } else if (task != null) {
-              getTaskBgGradientColors(task = task)[1]
-            } else {
-              MaterialTheme.colorScheme.primary
-            }
+            if (isPrimaryAction) MaterialTheme.colorScheme.primary
+            else downloadButtonBackgroundColor,
+          contentColor =
+            if (isPrimaryAction) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface,
         ),
       contentPadding = PaddingValues(horizontal = 12.dp),
       onClick = {
@@ -368,19 +373,7 @@ fun DownloadAndTryButton(
         }
       },
     ) {
-      val textColor =
-        if (!enabled) {
-          // Define the color for disabled button.
-          MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-        } else if (
-          !downloadSucceeded && model.downloadInfo.localRelativeDirPathOverride.isEmpty()
-        ) {
-          MaterialTheme.colorScheme.onSurface
-        } else if (task != null) {
-          Color.White
-        } else {
-          MaterialTheme.colorScheme.onPrimary
-        }
+      val textColor = LocalContentColor.current
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -391,7 +384,8 @@ fun DownloadAndTryButton(
           } else {
             Icons.AutoMirrored.Rounded.ArrowForward
           },
-          contentDescription = null,
+          contentDescription =
+            if (compact || (!needToDownloadFirst && !canShowTryIt)) actionLabel else null,
           tint = textColor,
         )
 
@@ -429,7 +423,7 @@ fun DownloadAndTryButton(
         .clip(CircleShape)
         .background(MaterialTheme.colorScheme.surfaceContainer)
         .padding(horizontal = 8.dp)
-        .height(42.dp)
+        .heightIn(min = 48.dp)
     Row(modifier = downloadProgressModifier, verticalAlignment = Alignment.CenterVertically) {
       if (checkingToken) {
         Text(
@@ -464,16 +458,13 @@ fun DownloadAndTryButton(
           modifier = textSemanticsModifier,
         )
         if (!compact) {
-          val color =
-            if (task != null) getTaskBgGradientColors(task = task)[1]
-            else MaterialTheme.colorScheme.primary
           LinearProgressIndicator(
             modifier =
               Modifier.weight(1f).padding(horizontal = 4.dp).semantics {
                 contentDescription = progressCd
               },
             progress = { animatedProgress.value },
-            color = color,
+            color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
           )
         }

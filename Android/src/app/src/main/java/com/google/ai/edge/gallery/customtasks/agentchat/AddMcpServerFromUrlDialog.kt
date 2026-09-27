@@ -26,15 +26,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -123,16 +127,17 @@ fun AddMcpServerFromUrlDialog(
         ) {
           focusManager.clearFocus()
         },
-      shape = RoundedCornerShape(16.dp),
+      shape = RoundedCornerShape(28.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
       Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
         // Dialog Title
         Text(
           stringResource(R.string.add_mcp_server_from_url_dialog_title),
-          style = MaterialTheme.typography.titleMedium,
+          style = MaterialTheme.typography.headlineSmall,
           modifier = Modifier.padding(bottom = 8.dp),
         )
         // Container for input label and text field
@@ -151,8 +156,8 @@ fun AddMcpServerFromUrlDialog(
                 mcpManagerViewModel.clearError()
               }
             },
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
             maxLines = 3,
             trailingIcon = {
               if (textFieldValue.text.isNotEmpty()) {
@@ -204,7 +209,7 @@ fun AddMcpServerFromUrlDialog(
               modifier =
                 Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable)
                   .fillMaxWidth(),
-              textStyle = MaterialTheme.typography.bodySmall,
+              textStyle = MaterialTheme.typography.bodyMedium,
               trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded)
               },
@@ -297,6 +302,7 @@ fun AddMcpServerFromUrlDialog(
             OutlinedButton(onClick = safeDismiss) { Text(stringResource(R.string.cancel)) }
             Spacer(modifier = Modifier.width(4.dp))
             Button(
+              modifier = Modifier.heightIn(min = 48.dp),
               enabled = textFieldValue.text.trim().isNotEmpty(),
               onClick = {
                 Log.d(TAG, "Analytics: mcp_management, action=add_server, status=attempt")

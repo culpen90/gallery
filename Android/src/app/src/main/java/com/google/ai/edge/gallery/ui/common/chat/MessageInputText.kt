@@ -47,7 +47,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,7 +88,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -108,13 +106,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -135,9 +134,7 @@ import com.google.ai.edge.gallery.data.MAX_IMAGE_COUNT
 import com.google.ai.edge.gallery.data.MAX_IMAGE_COUNT_AI_CORE
 import com.google.ai.edge.gallery.data.SAMPLE_RATE
 import com.google.ai.edge.gallery.data.Task
-import com.google.ai.edge.gallery.ui.common.getTaskIconColor
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-import com.google.ai.edge.gallery.ui.theme.bodyLargeNarrow
 import java.io.FileInputStream
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
@@ -158,6 +155,7 @@ fun MessageInputText(
   task: Task,
   modelManagerViewModel: ModelManagerViewModel,
   curMessage: String,
+  inputFocusRequester: FocusRequester = remember { FocusRequester() },
   isResettingSession: Boolean,
   inProgress: Boolean,
   imageCount: Int,
@@ -368,9 +366,13 @@ fun MessageInputText(
               contentDescription = stringResource(R.string.cd_image_thumbnail),
               modifier =
                 Modifier.height(80.dp)
-                  .shadow(2.dp, shape = RoundedCornerShape(8.dp))
-                  .clip(RoundedCornerShape(8.dp))
-                  .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                  .shadow(2.dp, shape = RoundedCornerShape(16.dp))
+                  .clip(RoundedCornerShape(16.dp))
+                  .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant,
+                    RoundedCornerShape(16.dp),
+                  ),
             )
             MediaPanelCloseButton { pickedImages = pickedImages.filter { image != it } }
           }
@@ -380,16 +382,16 @@ fun MessageInputText(
           Box(contentAlignment = Alignment.TopEnd) {
             Box(
               modifier =
-                Modifier.shadow(2.dp, shape = RoundedCornerShape(8.dp))
-                  .clip(RoundedCornerShape(8.dp))
+                Modifier.shadow(2.dp, shape = RoundedCornerShape(16.dp))
+                  .clip(RoundedCornerShape(16.dp))
                   .background(MaterialTheme.colorScheme.surface)
-                  .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                  .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
             ) {
               AudioPlaybackPanel(
                 audioData = audioClip.audioData,
                 sampleRate = audioClip.sampleRate,
                 isRecording = false,
-                modifier = Modifier.padding(end = 16.dp),
+                modifier = Modifier.padding(end = 48.dp),
               )
             }
             MediaPanelCloseButton {
@@ -433,9 +435,11 @@ fun MessageInputText(
           false ->
             Column(
               modifier =
-                Modifier.padding(horizontal = 12.dp)
-                  .padding(vertical = 8.dp)
-                  .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                  .clip(RoundedCornerShape(28.dp))
+                  .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                  .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
+                  .padding(4.dp)
             ) {
               // First row: text field for input.
               Row(
@@ -447,7 +451,7 @@ fun MessageInputText(
                 TextField(
                   value = curMessage,
                   minLines = 1,
-                  maxLines = 3,
+                  maxLines = 5,
                   onValueChange = onValueChanged,
                   colors =
                     TextFieldDefaults.colors(
@@ -458,16 +462,25 @@ fun MessageInputText(
                       disabledIndicatorColor = Color.Transparent,
                       disabledContainerColor = Color.Transparent,
                     ),
-                  textStyle = bodyLargeNarrow,
-                  modifier = Modifier.weight(1f).semantics { contentDescription = cdPromptInput },
-                  placeholder = { Text(stringResource(textFieldPlaceHolderRes)) },
+                  textStyle = MaterialTheme.typography.bodyLarge,
+                  modifier =
+                    Modifier.weight(1f).focusRequester(inputFocusRequester).semantics {
+                      contentDescription = cdPromptInput
+                    },
+                  placeholder = {
+                    Text(
+                      stringResource(textFieldPlaceHolderRes),
+                      style = MaterialTheme.typography.bodyLarge,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                  },
                 )
                 Spacer(modifier = Modifier.width(4.dp))
               }
 
               // Second row: buttons to add extra content, and the action button.
               Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).offset(y = (-8).dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
               ) {
@@ -478,24 +491,15 @@ fun MessageInputText(
                   // A plus button to show a popup menu to add stuff to the chat.
                   Box() {
                     val enableAddButton = !inProgress && !isResettingSession && !modelInitializing
-                    OutlinedIconButton(
+                    IconButton(
                       enabled = enableAddButton,
                       onClick = { showAddContentMenu = true },
+                      modifier = Modifier.size(48.dp),
                       colors =
                         IconButtonDefaults.iconButtonColors(
-                          disabledContentColor =
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                          containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                          contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
-                      border =
-                        IconButtonDefaults.outlinedIconButtonBorder(true)
-                          .copy(
-                            brush =
-                              SolidColor(
-                                MaterialTheme.colorScheme.outlineVariant.copy(
-                                  alpha = if (enableAddButton) 1f else 0.1f
-                                )
-                              )
-                          ),
                     ) {
                       Icon(
                         Icons.Outlined.Add,
@@ -692,7 +696,10 @@ fun MessageInputText(
                         DropdownMenuItem(
                           text = { Text(stringResource(R.string.skills)) },
                           leadingIcon = {
-                            Icon(ImageVector.vectorResource(R.drawable.skill), contentDescription = null)
+                            Icon(
+                              ImageVector.vectorResource(R.drawable.skill),
+                              contentDescription = null,
+                            )
                           },
                           onClick = {
                             showAddContentMenu = false
@@ -792,9 +799,20 @@ fun MessageInputText(
 
                   if (unifiedInterface && showAudioPicker) {
                     IconButton(
+                      modifier = Modifier.size(48.dp),
+                      colors =
+                        IconButtonDefaults.iconButtonColors(
+                          contentColor = MaterialTheme.colorScheme.primary
+                        ),
                       enabled =
-                        !inProgress && !isResettingSession && !modelInitializing &&
-                          remainingAudioClipSlots(true, audioClipMessageCount, pickedAudioClips.size) > 0,
+                        !inProgress &&
+                          !isResettingSession &&
+                          !modelInitializing &&
+                          remainingAudioClipSlots(
+                            true,
+                            audioClipMessageCount,
+                            pickedAudioClips.size,
+                          ) > 0,
                       onClick = { startAudioInput(AudioInputMode.VOICE_CHAT) },
                     ) {
                       Icon(
@@ -810,6 +828,7 @@ fun MessageInputText(
                   if (!modelInitializing && !modelPreparing) {
                     IconButton(
                       onClick = onStopButtonClicked,
+                      modifier = Modifier.size(48.dp),
                       colors =
                         IconButtonDefaults.iconButtonColors(
                           containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -826,12 +845,16 @@ fun MessageInputText(
                 // Send button.
                 else {
                   IconButton(
+                    modifier = Modifier.size(48.dp),
                     enabled =
                       !inProgress &&
                         !isResettingSession &&
                         (curMessage.isNotEmpty() || pickedAudioClips.isNotEmpty()),
                     onClick = {
-                      if (pickedAudioClips.isNotEmpty() && !modelManagerUiState.selectedModel.supportAudio) {
+                      if (
+                        pickedAudioClips.isNotEmpty() &&
+                          !modelManagerUiState.selectedModel.supportAudio
+                      ) {
                         onModelNotSupportAudio()
                         return@IconButton
                       }
@@ -848,15 +871,17 @@ fun MessageInputText(
                     },
                     colors =
                       IconButtonDefaults.iconButtonColors(
-                        containerColor = getTaskIconColor(task = task),
-                        disabledContainerColor = getTaskIconColor(task = task).copy(alpha = 0.3f),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        disabledContentColor =
+                          MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                       ),
                   ) {
                     Icon(
                       Icons.AutoMirrored.Rounded.Send,
                       contentDescription = stringResource(R.string.cd_send_prompt_icon),
-                      modifier = Modifier.offset(x = 2.dp),
-                      tint = Color.White,
+                      modifier = Modifier.size(22.dp).offset(x = 1.dp),
                     )
                   }
                 }
@@ -1091,18 +1116,16 @@ fun MessageInputText(
 
 @Composable
 private fun MediaPanelCloseButton(onClicked: () -> Unit) {
-  Box(
-    modifier =
-      Modifier.offset(x = 10.dp, y = (-10).dp)
-        .clip(CircleShape)
-        .background(MaterialTheme.colorScheme.surface)
-        .border((1.5).dp, MaterialTheme.colorScheme.outline, CircleShape)
-        .clickable { onClicked() }
-  ) {
+  IconButton(onClick = onClicked, modifier = Modifier.size(48.dp)) {
     Icon(
       Icons.Rounded.Close,
       contentDescription = stringResource(R.string.cd_delete_icon),
-      modifier = Modifier.padding(3.dp).size(16.dp),
+      tint = MaterialTheme.colorScheme.onSurface,
+      modifier =
+        Modifier.clip(CircleShape)
+          .background(MaterialTheme.colorScheme.surface)
+          .padding(6.dp)
+          .size(16.dp),
     )
   }
 }
