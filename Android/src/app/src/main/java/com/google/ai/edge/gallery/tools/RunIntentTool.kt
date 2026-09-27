@@ -44,9 +44,9 @@ class RunIntentTool(private val context: Context, private val skillsProvider: Sk
       description = "A JSON string containing the parameter values required for the intent."
     )
     parameters: String,
-  ): Map<String, String> {
-    toolExecutionDeniedResult()?.let { return it }
-    return runBlocking(Dispatchers.Default) {
+  ): Map<String, String> = recordToolCall("runIntent:${IntentAction.from(intent)?.name ?: "unknown"}") {
+    toolExecutionDeniedResult()?.let { return@recordToolCall it }
+    runBlocking(Dispatchers.Default) {
       if (IntentAction.from(intent) == null) {
         Log.w(TAG, "Intent not found: '$intent'")
         return@runBlocking guardMissingEntityWithSkillFallback(name = intent, type = "Intent")

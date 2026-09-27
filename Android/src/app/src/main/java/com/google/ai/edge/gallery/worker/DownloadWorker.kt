@@ -23,6 +23,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -49,6 +50,7 @@ import com.google.ai.edge.gallery.data.KEY_MODEL_TOTAL_BYTES
 import com.google.ai.edge.gallery.data.KEY_MODEL_UNZIPPED_DIR
 import com.google.ai.edge.gallery.data.KEY_MODEL_URL
 import com.google.ai.edge.gallery.data.TMP_FILE_EXT
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -58,6 +60,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -110,9 +113,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
       inputData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
     val totalBytes = inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
     val accessToken = inputData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN)
+    val startedMs = SystemClock.elapsedRealtime()
+    DiagnosticsRecorder.event(
+      "download",
+      "started model=$modelName expected_bytes=$totalBytes extra_only=$isExtraDataOnly " +
+        "extra_files=${extraDataFileUrls.size} attempt=$runAttemptCount",
+    )
 
     return withContext(Dispatchers.IO) {
       if (!isExtraDataOnly && (fileUrl == null || fileName == null)) {
+        DiagnosticsRecorder.event("download", "failed model=$modelName reason=missing_input")
         Result.failure()
       } else {
         return@withContext try {
@@ -141,7 +151,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
 
             val connection = url.openConnection() as HttpURLConnection
             if (accessToken != null) {
-              Log.d(TAG, "Using access token: ${accessToken.subSequence(0, 10)}...")
+              Log.d(TAG, "Using configured access token")
               connection.setRequestProperty("Authorization", "Bearer $accessToken")
             }
 
@@ -183,6 +193,10 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
             }
             connection.connect()
             Log.d(TAG, "response code: ${connection.responseCode}")
+            DiagnosticsRecorder.event(
+              "download",
+              "connection model=$modelName http_status=${connection.responseCode} resume_bytes=$outputFileBytes",
+            )
 
             if (
               connection.responseCode == HttpURLConnection.HTTP_OK ||
@@ -355,12 +369,32 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
               originalFile.delete()
             }
           }
+          DiagnosticsRecorder.event(
+            "download",
+            "succeeded model=$modelName bytes=$downloadedBytes " +
+              "duration_ms=${SystemClock.elapsedRealtime() - startedMs}",
+          )
           Result.success()
+        } catch (e: CancellationException) {
+          DiagnosticsRecorder.event("download", "cancelled model=$modelName")
+          throw e
         } catch (e: IOException) {
+          DiagnosticsRecorder.event(
+            "download",
+            "failed model=$modelName error_type=${e.javaClass.simpleName} " +
+              "duration_ms=${SystemClock.elapsedRealtime() - startedMs}",
+          )
           Log.e(TAG, e.message, e)
           Result.failure(
             Data.Builder().putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, e.message).build()
           )
+        } catch (e: Exception) {
+          DiagnosticsRecorder.event(
+            "download",
+            "failed model=$modelName error_type=${e.javaClass.simpleName} " +
+              "duration_ms=${SystemClock.elapsedRealtime() - startedMs}",
+          )
+          throw e
         }
       }
     }

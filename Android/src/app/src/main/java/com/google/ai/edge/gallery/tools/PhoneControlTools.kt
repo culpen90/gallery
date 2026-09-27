@@ -30,7 +30,6 @@ class PhoneControlTools(private val intentTool: RunIntentTool) : ToolDefinition 
     set(value) { intentTool.executionContext = value }
 
   private fun run(action: String, parameters: Map<String, String> = emptyMap()): Map<String, String> {
-    toolExecutionDeniedResult()?.let { return it }
     return intentTool.runIntent(action, JSONObject(parameters).toString())
   }
 

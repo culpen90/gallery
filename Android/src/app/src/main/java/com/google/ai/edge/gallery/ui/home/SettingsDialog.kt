@@ -45,12 +45,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,11 +68,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.proto.Theme
 import com.google.ai.edge.gallery.ui.common.ClickableLink
 import com.google.ai.edge.gallery.ui.common.tos.AppTosDialog
+import com.google.ai.edge.gallery.ui.diagnostics.DiagnosticsSettings
+import com.google.ai.edge.gallery.ui.diagnostics.DiagnosticsViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
@@ -84,7 +89,11 @@ fun SettingsDialog(
   curFirebaseAnalytics: Boolean,
   modelManagerViewModel: ModelManagerViewModel,
   onDismissed: () -> Unit,
+  diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
 ) {
+  val writingDiagnostics by diagnosticsViewModel.writing.collectAsState()
+  val pickingDiagnosticsFile by diagnosticsViewModel.pickerPending.collectAsState()
+  val diagnosticsBusy = writingDiagnostics || pickingDiagnosticsFile
   var selectedTheme by remember { mutableStateOf(curThemeOverride) }
   var selectedFirebaseAnalytics by remember { mutableStateOf(curFirebaseAnalytics) }
   var hfToken by remember { mutableStateOf(modelManagerViewModel.getTokenStatusAndData().data) }
@@ -106,8 +115,11 @@ fun SettingsDialog(
   }
 
   ModalBottomSheet(
-    onDismissRequest = onDismissed,
-    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    onDismissRequest = { if (!diagnosticsBusy) onDismissed() },
+    sheetState = rememberModalBottomSheetState(
+      skipPartiallyExpanded = true,
+      confirmValueChange = { !diagnosticsBusy || it != SheetValue.Hidden },
+    ),
     containerColor = MaterialTheme.colorScheme.surface,
   ) {
     Column(modifier = Modifier.fillMaxWidth().imePadding().padding(horizontal = 24.dp)) {
@@ -117,7 +129,7 @@ fun SettingsDialog(
           style = MaterialTheme.typography.headlineMedium,
           modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = onDismissed) {
+        IconButton(onClick = onDismissed, enabled = !diagnosticsBusy) {
           Icon(Icons.Rounded.Close, stringResource(R.string.cd_close_icon))
         }
       }
@@ -134,6 +146,9 @@ fun SettingsDialog(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
       ) {
+        SettingsSection(stringResource(R.string.diagnostics_title)) {
+          DiagnosticsSettings(viewModel = diagnosticsViewModel)
+        }
         SettingsSection(stringResource(R.string.redesign_appearance)) {
           Text(stringResource(R.string.theme_title), style = MaterialTheme.typography.titleSmall)
           SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {

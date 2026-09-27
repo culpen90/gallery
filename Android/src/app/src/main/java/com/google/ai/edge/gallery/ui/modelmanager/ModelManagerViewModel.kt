@@ -64,6 +64,7 @@ import com.google.ai.edge.gallery.data.markInitializationFailed
 import com.google.ai.edge.gallery.data.markInitializationStarted
 import com.google.ai.edge.gallery.data.markInitialized
 import com.google.ai.edge.gallery.data.resetInitialization
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.huggingface.HuggingFaceApiClient
 import com.google.ai.edge.gallery.proto.AccessTokenData
@@ -333,6 +334,7 @@ constructor(
 
   fun selectModel(model: Model) {
     if (_uiState.value.selectedModel.name != model.name) {
+      DiagnosticsRecorder.event("model", "selected model=${model.name}")
       _uiState.update { it.copy(selectedModel = model) }
     }
   }
@@ -410,6 +412,7 @@ constructor(
   }
 
   fun cancelDownloadModel(model: Model) {
+    DiagnosticsRecorder.event("download", "cancel_requested model=${model.name}")
     // AICore models cannot be deleted from the download repository within the app.
     if (model.isAiCore) {
       return
@@ -492,6 +495,13 @@ constructor(
   }
 
   fun setExtraDataDownloadStatus(curModel: Model, status: ModelDownloadStatus) {
+    if (_uiState.value.extraDataDownloadStatus[curModel.name]?.status != status.status) {
+      DiagnosticsRecorder.event(
+        "download",
+        "extra_data_status model=${curModel.name} status=${status.status} " +
+          "received_bytes=${status.receivedBytes} total_bytes=${status.totalBytes}",
+      )
+    }
     _uiState.update { currentState ->
       val curStatus = currentState.extraDataDownloadStatus.toMutableMap()
       curStatus[curModel.name] = status
@@ -838,6 +848,13 @@ constructor(
   }
 
   fun setDownloadStatus(curModel: Model, status: ModelDownloadStatus) {
+    if (_uiState.value.modelDownloadStatus[curModel.name]?.status != status.status) {
+      DiagnosticsRecorder.event(
+        "download",
+        "status model=${curModel.name} status=${status.status} " +
+          "received_bytes=${status.receivedBytes} total_bytes=${status.totalBytes}",
+      )
+    }
     // Delete downloaded file if status is failed or not_downloaded.
     if (
       status.status == ModelDownloadStatusType.FAILED ||
@@ -1047,6 +1064,10 @@ constructor(
     }
     importedModels.add(info)
     dataStoreRepository.saveImportedModels(importedModels = importedModels)
+    DiagnosticsRecorder.event(
+      "import",
+      "registered model=${model.name} bytes=${info.fileSize} remote=${model.downloadInfo.url.isNotEmpty()}",
+    )
   }
 
   fun getTokenStatusAndData(): TokenStatusAndData {

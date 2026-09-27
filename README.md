@@ -1,16 +1,17 @@
 # Gallery — Android Beta
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Android beta](https://img.shields.io/badge/Android-1.0.0--beta.3-blue)](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.3)
+[![Android beta](https://img.shields.io/badge/Android-1.0.0--beta.4-blue)](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.4)
 
-This is an independent fork of [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). The Android beta brings chat, Agent Skills, phone controls, and Audio Scribe into one conversation. **1.0.0-beta.3** introduces a complete interface redesign with warm light and dark themes, a simpler chat composer, and a searchable model library. The language model decides in the background whether to reply directly, load a relevant skill, or use a supported phone control.
+This is an independent fork of [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). The Android beta brings chat, Agent Skills, phone controls, and Audio Scribe into one conversation. **1.0.0-beta.4** adds local beta diagnostics with live logs, crash recovery, and ZIP exports you can save directly to your phone. The warm light and dark themes, simpler composer, and searchable model library from beta 3 remain included. The language model decides in the background whether to reply directly, load a relevant skill, or use a supported phone control.
 
-**[Download the Android beta APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.3/gallery-1.0.0-beta.3.apk)** · [Release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.3) · [Android guide](Android/README.md)
+**[Download the Android beta APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.4/gallery-1.0.0-beta.4.apk)** · [Release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.4) · [Android guide](Android/README.md)
 
 The beta requires Android 12 or later and a compatible on-device model. It is distributed from this repository's GitHub releases. The original app's store listings and screenshots below describe upstream releases.
 
 ## Android features
 
+- **Beta diagnostics:** Automatically record app events and available app-process logs. Open **Settings → Beta diagnostics**, add an issue note, and save a ZIP while recording continues. Logs survive restarts, and the latest recovered crash capture is kept separately. A launcher shortcut opens diagnostics without loading chat. See the [reporting guide](Bug_Reporting_Guide.md).
 - **A refreshed interface:** Clear navigation, editable starter prompts, comfortable touch targets, and consistent settings, history, skills, and download screens.
 - **One conversation:** Start in chat, choose a model from the top bar, and find history, settings, and model management nearby.
 - **Automatic Agent Skills:** Enabled skills and connected tools remain available to compatible models. Manage them through the composer's **+** menu.
@@ -18,13 +19,15 @@ The beta requires Android 12 or later and a compatible on-device model. It is di
 - **Audio Scribe:** Talk to an audio-capable model, request a transcript, or import a WAV file. Recordings support up to 30 seconds per message. Explicit transcription disables tool execution.
 - **On-device models:** Download or import compatible models using the existing Gallery infrastructure. A bundled catalog keeps model setup available when the online catalog and cache cannot be loaded. Skills, phone controls, and audio depend on the selected model's capabilities.
 
-Voice chat has been checked on a physical phone with Gemma-4-E2B-it. Saved recordings remain playable after reopening a chat, but must be sent again for the model to hear them. Transcription with this model can answer a spoken question instead of transcribing it; see the [beta limitations](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.3).
+Voice chat has been checked on a physical phone with Gemma-4-E2B-it. Saved recordings remain playable after reopening a chat, but must be sent again for the model to hear them. Transcription with this model can answer a spoken question instead of transcribing it; see the [beta limitations](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.4).
+
+Diagnostics stay on your phone until you choose to save or share them. Logs rotate at 20 MiB, plus one retained crash archive. Credential masking is best effort; review reports before sharing because existing logs may contain personal text. No chat databases, model weights, photos, or audio files are copied.
 
 Inference runs on the device. Model downloads and network-connected skills or tools can use the internet. Hugging Face OAuth is not configured in this fork's beta, so gated downloads require configuration; see the [development notes](DEVELOPMENT.md). Local model import remains available.
 
 ## Install the Android beta
 
-1. Download [gallery-1.0.0-beta.3.apk](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.3/gallery-1.0.0-beta.3.apk) on an Android 12+ device.
+1. Download [gallery-1.0.0-beta.4.apk](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.4/gallery-1.0.0-beta.4.apk) on an Android 12+ device.
 2. Open the APK and allow installation from your browser or file manager when Android prompts you.
 3. Open Gallery and choose or import a compatible model. See the [Android guide](Android/README.md) for voice input, transcription, skills, and phone actions.
 

@@ -73,6 +73,7 @@ import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.isLegacyTasks
 import com.google.ai.edge.gallery.data.preferredChatTask
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.ui.benchmark.BenchmarkScreen
 import com.google.ai.edge.gallery.ui.common.ErrorDialog
@@ -150,6 +151,12 @@ fun GalleryNavHost(
   val lifecycleOwner = LocalLifecycleOwner.current
   val context = LocalContext.current
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
+  LaunchedEffect(navController) {
+    navController.currentBackStackEntryFlow.collect { entry ->
+      // Log the route template, never arguments such as model paths or session contents.
+      DiagnosticsRecorder.event("navigation", "screen=${entry.destination.route}")
+    }
+  }
 
   // Track whether app is in foreground.
   DisposableEffect(lifecycleOwner) {

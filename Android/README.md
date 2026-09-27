@@ -1,10 +1,12 @@
-# Gallery Android — 1.0.0-beta.3
+# Gallery Android — 1.0.0-beta.4
 
-This is beta 3 of the [culpen90/gallery fork](https://github.com/culpen90/gallery), built on [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Download the **[installable APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.3/gallery-1.0.0-beta.3.apk)** or read the **[beta release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.3)**. Android 12 or later is required.
+This is beta 4 of the [culpen90/gallery fork](https://github.com/culpen90/gallery), built on [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Download the **[installable APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.4/gallery-1.0.0-beta.4.apk)** or read the **[beta release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.4)**. Android 12 or later is required.
 
 Open the APK on your device and allow installation from your browser or file manager if Android asks. Choose or import a compatible on-device model after opening Gallery. This guide covers the fork's Android interface; upstream store releases, iOS, and macOS have their own interfaces and documentation.
 
-Beta 3 redesigns the interface with warm light and dark themes, clearer navigation, editable starter prompts, and a simpler composer. The model library now offers search and filters for all, on-device, and imported models. History, settings, skills, connected tools, notifications, and setup screens share the same visual style. See the [design and validation notes](DESIGN.md).
+Beta 4 adds local diagnostics that record during normal use, preserve crash captures, and export a ZIP directly to your phone. Start with **Settings → Beta diagnostics** or the **Diagnostics** launcher shortcut. See [diagnostics details and validation](DIAGNOSTICS.md).
+
+The interface introduced in beta 3 remains included, with warm light and dark themes, clearer navigation, editable starter prompts, and a simpler composer. The model library now offers search and filters for all, on-device, and imported models. History, settings, skills, connected tools, notifications, and setup screens share the same visual style. See the [design and validation notes](DESIGN.md).
 
 The audio fixes from beta 2 remain included: your recording and any text you actually enter are sent together without an extra generated chat bubble.
 
@@ -27,3 +29,13 @@ Saved recordings remain available to play after reopening a chat. The current ru
 Transcription remains model-dependent. With Gemma-4-E2B-it, a request to transcribe a spoken question can produce an answer to that question instead of the exact words. Transcription mode still disables tool execution.
 
 Inference runs on the device; model downloads and network-connected skills or tools can use the internet. Other models, devices, and physical phone actions need broader testing during this beta.
+
+## Beta diagnostics
+
+Beta builds automatically record local diagnostic logs while you use Gallery. Open **Settings → Beta diagnostics** to see live events, recording status, retained storage, and whether app-process logcat is available. Add a note about the problem, then tap **Save ZIP** and choose **Downloads** or another folder in Android's file picker. You can export while recording; you do not need to stop first.
+
+Logs survive app restarts. If Gallery crashes before you can export, reopen it and save the ZIP. The next launch preserves the latest recorded or Android-reported crash/ANR capture separately, and includes it as `previous-crash.zip` in the export. Long-press the Gallery launcher icon and choose **Diagnostics** to open diagnostics without initializing chat, including when a chat-screen problem prevents access to Settings. Avoid uninstalling the app or clearing Android app storage before recovering logs. Final queued lines may be lost after a sudden kill or power loss, and native crash/ANR recovery depends on Android's available exit records.
+
+The ZIP contains retained app events and app-process logcat, build/device/runtime information, memory and responsiveness observations, available app exit/ANR details, source-status information, and your note. Recording uses a **20 MiB** rotating log store plus **one** separately retained crash archive. Old records rotate out, and busy logging or Android restrictions can leave gaps that are reported in the capture status. Pause recording or clear the retained capture from the same screen; clearing does not remove ZIPs already saved or shared.
+
+Collection stays on your phone and is never automatically uploaded. Common credentials are masked on a best-effort basis, but existing logs and issue notes may contain personal conversation or tool text; review before sharing. Chat databases, model weights, photos, audio recordings, credential stores, and other apps' logs are not copied. This is an app diagnostic report; a full Android system report remains a separate, advanced option. See the [bug reporting guide](../Bug_Reporting_Guide.md) for recovery and system-report instructions.

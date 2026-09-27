@@ -71,6 +71,7 @@ import com.google.ai.edge.gallery.data.ConfigKey
 import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.IMPORTS_DIR
 import com.google.ai.edge.gallery.data.ModelUtils
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.huggingface.HuggingFaceApiClient
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.ImportedModel
@@ -345,6 +346,10 @@ private fun importModel(
 ) {
   // TODO: handle error.
   coroutineScope.launch(Dispatchers.IO) {
+    DiagnosticsRecorder.event(
+      "import",
+      "started expected_bytes=$fileSize remote=${isHttpOrHttps(uri)}",
+    )
     // If it's a model from the web, we don't need to copy the file over.
     if (isHttpOrHttps(uri)) {
       Log.d(TAG, "importing web model from $uri. File name: $fileName. File size: $fileSize")
@@ -354,6 +359,7 @@ private fun importModel(
       //   onProgress(i.toFloat() / 10f)
       // }
       Log.d(TAG, "import done for web model")
+      DiagnosticsRecorder.event("import", "remote_reference_added")
       withContext(Dispatchers.Main) { onDone() }
       return@launch
     }
@@ -397,8 +403,13 @@ private fun importModel(
         }
       }
     } catch (e: CancellationException) {
+      DiagnosticsRecorder.event("import", "cancelled copied_bytes=$importedBytes")
       throw e
     } catch (e: Exception) {
+      DiagnosticsRecorder.event(
+        "import",
+        "failed error_type=${e.javaClass.simpleName} copied_bytes=$importedBytes",
+      )
       Log.e(TAG, "Failed to import model", e)
       withContext(Dispatchers.Main) {
         onError(e.message ?: context.getString(R.string.failed_to_import))
@@ -409,6 +420,7 @@ private fun importModel(
       outputStream.close()
     }
     Log.d(TAG, "import done")
+    DiagnosticsRecorder.event("import", "copy_finished bytes=$importedBytes")
     withContext(Dispatchers.Main) {
       onProgress(1f)
       onDone()

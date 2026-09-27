@@ -86,7 +86,7 @@ fun HomeScreen(
   modifier: Modifier = Modifier,
 ) {
   val uiState by modelManagerViewModel.uiState.collectAsState()
-  var showSettings by remember { mutableStateOf(false) }
+  var showSettings by rememberSaveable { mutableStateOf(false) }
   var showMenu by remember { mutableStateOf(false) }
   var showTos by remember { mutableStateOf(!tosViewModel.getIsTosAccepted()) }
   var lastModelName by rememberSaveable { mutableStateOf("") }

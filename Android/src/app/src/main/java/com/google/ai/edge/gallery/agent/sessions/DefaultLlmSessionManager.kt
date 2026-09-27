@@ -23,6 +23,7 @@ import com.google.ai.edge.gallery.data.ChatSessionRepository
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.awaitInitialization
 import com.google.ai.edge.gallery.di.IoDispatcher
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSessionProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
@@ -82,6 +83,10 @@ constructor(
     try {
       model.awaitInitialization()
     } catch (e: Exception) {
+      DiagnosticsRecorder.event(
+        "session",
+        "model_wait_failed operation=$operation model=${model.name} error_type=${e.javaClass.simpleName}",
+      )
       Log.e(TAG, "Model initialization await failed for $operation: ${e.message}", e)
       throw e
     }
@@ -91,6 +96,10 @@ constructor(
     withContext(ioDispatcher) {
       val sessionId = generateSessionId()
       activeSessionId = sessionId
+      DiagnosticsRecorder.event(
+        "session",
+        "create_started model=${config.model.name} task=${config.taskId}",
+      )
       Log.d(
         TAG,
         "Creating new session $sessionId for model ${config.model.name} and task ${config.taskId}",
@@ -121,6 +130,7 @@ constructor(
   ): List<ChatMessageProto> =
     withContext(ioDispatcher) {
       activeSessionId = sessionId
+      DiagnosticsRecorder.event("session", "restore_started model=${config.model.name}")
       Log.d(TAG, "Loading session $sessionId for model ${config.model.name}")
       val allSessions = chatSessionRepository.getAllChatSessions()
       val session = allSessions.firstOrNull { it.sessionId == sessionId }
@@ -128,6 +138,11 @@ constructor(
 
       val litertMessages =
         convertToLitertMessages(ChatMessageMapper.deserializeProtoMessages(history))
+      DiagnosticsRecorder.event(
+        "session",
+        "history_loaded model=${config.model.name} found=${session != null} " +
+          "stored_messages=${history.size} restored_messages=${litertMessages.size}",
+      )
 
       ensureModelInitialized(config.model, "loadSession")
 
@@ -142,6 +157,10 @@ constructor(
         )
       } catch (e: Exception) {
         Log.e(TAG, "Error resetting conversation on session load: ${e.message}", e)
+        DiagnosticsRecorder.event(
+          "session",
+          "restore_failed model=${config.model.name} error_type=${e.javaClass.simpleName}",
+        )
         throw e
       }
 
@@ -157,6 +176,10 @@ constructor(
     withContext(ioDispatcher) {
       activeSessionId = sessionId
       Log.d(TAG, "Resetting session $sessionId on model ${config.model.name}")
+      DiagnosticsRecorder.event(
+        "session",
+        "reset_requested model=${config.model.name} history_messages=${initialMessages.size}",
+      )
 
       ensureModelInitialized(config.model, "resetSession")
 
@@ -193,6 +216,7 @@ constructor(
       conversationSessions.replaceSessionIfCurrent(sessionId)
       Log.d(TAG, "Deleting session $sessionId")
       chatSessionRepository.deleteChatSession(sessionId)
+      DiagnosticsRecorder.event("session", "history_deleted")
       feedbackLinks.remove(sessionId)
 
       val files = context.cacheDir.listFiles()
@@ -210,6 +234,7 @@ constructor(
       activeSessionId = generateSessionId()
       Log.d(TAG, "Clearing all chat sessions")
       chatSessionRepository.clearAllChatSessions()
+      DiagnosticsRecorder.event("session", "all_history_cleared")
       feedbackLinks.clear()
 
       val files = context.cacheDir.listFiles()
@@ -272,6 +297,10 @@ constructor(
         model.awaitInitialization()
       } catch (e: Exception) {
         Log.w(TAG, "Model initialization await failed: ${e.message}")
+        DiagnosticsRecorder.event(
+          "inference",
+          "model_wait_failed model=${model.name} error_type=${e.javaClass.simpleName}",
+        )
         onError("Model initialization failed: ${e.message}")
         return
       }

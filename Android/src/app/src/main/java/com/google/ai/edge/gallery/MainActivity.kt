@@ -67,10 +67,9 @@ class MainActivity : ComponentActivity() {
   private var contentSet: Boolean = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    // We intentionally pass null to discard the saved instance state bundle.
-    // This prevents Jetpack Compose from automatically restoring the previous screen
-    // and forces the app to start cleanly on the Home Screen after an OS kill.
-    super.onCreate(null)
+    // Restore ActivityResultRegistry as well as UI state so a diagnostics document-picker result
+    // is delivered after configuration changes or process recreation.
+    super.onCreate(savedInstanceState)
 
     // Debug: Dump all intent extras to see what FCM unloads
     intent.extras?.let { extras ->

@@ -55,9 +55,9 @@ class RunJsTool(
       description = "The data to pass to the script. Use empty string if not provided by user"
     )
     data: String,
-  ): Map<String, Any> {
-    toolExecutionDeniedResult()?.let { return it }
-    return runBlocking(Dispatchers.Default) {
+  ): Map<String, Any> = recordToolCall("runJs") {
+    toolExecutionDeniedResult()?.let { return@recordToolCall it }
+    runBlocking(Dispatchers.Default) {
       Log.d(
         TAG,
         "runJS tool called with:" +
@@ -102,7 +102,7 @@ class RunJsTool(
               key = getSkillSecretKey(skillName = skillName),
               value = secret,
             )
-            Log.d(TAG, "Got Secret from ask info dialog: ${secret.substring(0, 3)}")
+            Log.d(TAG, "Secret provided through the info dialog")
           } else {
             Log.d(TAG, "The ask info dialog got cancelled. No secret.")
           }

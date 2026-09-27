@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="beta_diagnostics"
+        android:enabled="true"
+        android:icon="@drawable/ic_diagnostics"
+        android:shortcutShortLabel="@string/diagnostics_shortcut">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.google.aiedge.gallery"
+            android:targetClass="com.google.ai.edge.gallery.ui.diagnostics.DiagnosticsActivity" />
+    </shortcut>
+</shortcuts>

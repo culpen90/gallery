@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery
 
 import android.app.Application
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManager
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
@@ -32,6 +33,7 @@ class GalleryApplication : Application() {
 
   override fun onCreate() {
     super.onCreate()
+    DiagnosticsRecorder.initialize(this)
     // Initialize the notification schedule manager to load the scheduled notifications from the
     // disk.
     notificationScheduleManager.initialize()

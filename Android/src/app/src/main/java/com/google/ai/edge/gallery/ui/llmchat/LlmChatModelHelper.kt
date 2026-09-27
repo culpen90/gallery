@@ -19,6 +19,7 @@ package com.google.ai.edge.gallery.ui.llmchat
 import com.google.ai.edge.litertlm.Capabilities
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.SystemClock
 import android.util.Log
 import com.google.ai.edge.gallery.common.cleanUpMediapipeTaskErrorMessage
 import com.google.ai.edge.gallery.common.metrics.InferenceStatus
@@ -38,6 +39,7 @@ import com.google.ai.edge.gallery.data.markInitializationStarted
 import com.google.ai.edge.gallery.data.markInitialized
 import com.google.ai.edge.gallery.data.resetInitialization
 import com.google.ai.edge.gallery.data.supportModelBenchmark
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.runtime.CleanUpListener
 import com.google.ai.edge.gallery.runtime.LlmModelHelper
 import com.google.ai.edge.gallery.runtime.ResultListener
@@ -56,6 +58,8 @@ import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.ToolProvider
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CancellationException
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -101,12 +105,19 @@ object LlmChatModelHelper : LlmModelHelper {
     coroutineScope: CoroutineScope?,
   ) {
     if (model.instance != null) {
+      DiagnosticsRecorder.event("model", "initialization_reused model=${model.name} task=$taskId")
       Log.d(TAG, "Model '${model.name}' already initialized in LlmChatModelHelper. Skipping.")
       model.markInitialized()
       onDone("")
       return
     }
     model.markInitializationStarted()
+    val initializationStartedMs = SystemClock.elapsedRealtime()
+    DiagnosticsRecorder.event(
+      "model",
+      "initialization_started model=${model.name} task=$taskId " +
+        "accelerator=${model.currentAccelerator} image=$supportImage audio=$supportAudio tools=${tools.size}",
+    )
     // Prepare options.
     val maxTokens =
       model.getIntConfigValue(key = ConfigKeys.MAX_TOKENS, defaultValue = DEFAULT_MAX_TOKEN)
@@ -215,12 +226,22 @@ object LlmChatModelHelper : LlmModelHelper {
         )
     } catch (e: Exception) {
       val errorMsg = cleanUpMediapipeTaskErrorMessage(e.message ?: "Unknown error")
+      DiagnosticsRecorder.event(
+        "model",
+        "initialization_failed model=${model.name} error_type=${e.javaClass.simpleName} " +
+          "duration_ms=${SystemClock.elapsedRealtime() - initializationStartedMs}",
+      )
       model.markInitializationFailed(errorMsg)
       metricsTracker.onModelInitialized()
       onDone(errorMsg)
       return
     }
     model.markInitialized()
+    DiagnosticsRecorder.event(
+      "model",
+      "initialization_succeeded model=${model.name} " +
+        "duration_ms=${SystemClock.elapsedRealtime() - initializationStartedMs}",
+    )
     metricsTracker.onModelInitialized()
     onDone("")
   }
@@ -237,6 +258,11 @@ object LlmChatModelHelper : LlmModelHelper {
   ) {
     try {
       Log.d(TAG, "Resetting conversation for model '${model.name}'")
+      DiagnosticsRecorder.event(
+        "session",
+        "conversation_reset_started model=${model.name} history_messages=${initialMessages.size} " +
+          "image=$supportImage audio=$supportAudio tools=${tools.size}",
+      )
 
       val instance = model.instance as LlmModelInstance? ?: return
       instance.conversation.close()
@@ -279,7 +305,12 @@ object LlmChatModelHelper : LlmModelHelper {
       instance.metricsTracker?.resetSession()
 
       Log.d(TAG, "Resetting done")
+      DiagnosticsRecorder.event("session", "conversation_reset_succeeded model=${model.name}")
     } catch (e: Exception) {
+      DiagnosticsRecorder.event(
+        "session",
+        "conversation_reset_failed model=${model.name} error_type=${e.javaClass.simpleName}",
+      )
       Log.d(TAG, "Failed to reset conversation", e)
     }
   }
@@ -312,10 +343,12 @@ object LlmChatModelHelper : LlmModelHelper {
     model.resetInitialization()
 
     onDone()
+    DiagnosticsRecorder.event("model", "cleanup_finished model=${model.name}")
     Log.d(TAG, "Clean up done.")
   }
 
   override fun stopResponse(model: Model) {
+    DiagnosticsRecorder.event("inference", "cancel_requested model=${model.name}")
     val instance = model.instance as? LlmModelInstance ?: return
     try {
       instance.conversation.cancelProcess()
@@ -339,9 +372,29 @@ object LlmChatModelHelper : LlmModelHelper {
   ) {
     val instance = model.instance as? LlmModelInstance
     if (instance == null) {
+      DiagnosticsRecorder.event("inference", "rejected model=${model.name} reason=uninitialized")
       onError("LlmModelInstance is not initialized.")
       return
     }
+    val inferenceStartedMs = SystemClock.elapsedRealtime()
+    val firstMessageDelayMs = AtomicLong(-1)
+    val streamChunks = AtomicInteger()
+    val outputCharacters = AtomicLong()
+    fun recordOutcome(outcome: String, errorType: String = "none") {
+      DiagnosticsRecorder.event(
+        "inference",
+        "$outcome model=${model.name} message_index=$messageIndex error_type=$errorType " +
+          "duration_ms=${SystemClock.elapsedRealtime() - inferenceStartedMs} " +
+          "first_message_ms=${firstMessageDelayMs.get()} stream_chunks=${streamChunks.get()} " +
+          "output_characters=${outputCharacters.get()}",
+      )
+    }
+    DiagnosticsRecorder.event(
+      "inference",
+      "started model=${model.name} message_index=$messageIndex images=${images.size} " +
+        "audio_clips=${audioClips.size} audio_bytes=${audioClips.sumOf { it.size.toLong() }} " +
+        "thinking=${extraContext?.get("enable_thinking") == "true"}",
+    )
 
     // Set listener.
     if (!cleanUpListeners.containsKey(model.name)) {
@@ -383,12 +436,16 @@ object LlmChatModelHelper : LlmModelHelper {
         override fun onMessage(message: Message) {
           val text = message.toString()
           val thinking = message.channels[THOUGHT_CHANNEL]
+          firstMessageDelayMs.compareAndSet(-1, SystemClock.elapsedRealtime() - inferenceStartedMs)
+          streamChunks.incrementAndGet()
+          outputCharacters.addAndGet(text.length.toLong())
           // Record streaming token to lock TTFT on first token and update live metrics.
           instance.metricsTracker?.onNewToken(tokenText = text, thinkingText = thinking)
           resultListener(text, false, thinking)
         }
 
         override fun onDone() {
+          recordOutcome("succeeded")
           // Finalize turn metrics with SUCCESS status.
           val unused =
             instance.metricsTracker?.endTurn(
@@ -399,6 +456,10 @@ object LlmChatModelHelper : LlmModelHelper {
         }
 
         override fun onError(throwable: Throwable) {
+          recordOutcome(
+            if (throwable is CancellationException) "cancelled" else "failed",
+            throwable.javaClass.simpleName,
+          )
           if (throwable is CancellationException) {
             // User or system cancelled inference: reconcile context tokens and mark CANCELLED.
             Log.i(TAG, "The inference is cancelled.")

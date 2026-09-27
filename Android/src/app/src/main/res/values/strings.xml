@@ -15,6 +15,7 @@
 -->
 
 <resources>
+    <string name="diagnostics_shortcut">Diagnostics</string>
   <string name="about_this_update" translatable="true" description="Title of the alert dialog that shows information about a model update. [CHAR_LIMIT=29]">About this update</string>
   <string name="all" translatable="true" description="Label for selecting or filtering all items (e.g., all models, all cutouts). [CHAR_LIMIT=18]">All</string>
   <string name="add" translatable="true" description="Button label to add a new item, such as a skill or server. [CHAR_LIMIT=6]">Add</string>
@@ -938,5 +939,37 @@
   <string name="task_desc_tiny_garden" translatable="true" description="Description for the Tiny Garden task. [CHAR_LIMIT=468]">Use natural language to plant, water, and harvest in this fully offline mini-game.\n\nNote: This is powered by the experimental FunctionGemma model optimized for latency. Due to its compact size (270M), it works well on simple instructions but responses may vary to more complex interactions.</string>
   <!-- Short description for the Tiny Garden task. [CHAR_LIMIT=35] -->
   <string name="task_short_desc_tiny_garden" translatable="true" description="Short description for the Tiny Garden task. [CHAR_LIMIT=45]">Use natural language to plant</string>
+
+  <!-- Beta diagnostics are stored on the device until the user exports a ZIP. -->
+  <string name="diagnostics_title">Beta diagnostics</string>
+  <string name="diagnostics_preparing">Preparing diagnostics…</string>
+  <string name="diagnostics_recording">Recording app activity</string>
+  <string name="diagnostics_paused">Recording paused</string>
+  <string name="diagnostics_recording_toggle">Record beta diagnostics</string>
+  <string name="diagnostics_retained_size">%1$s retained · up to 20 MiB of recent logs</string>
+  <string name="diagnostics_description">Capture app events, errors and available native logs while using Gallery. Logs may contain conversation and tool text; credential masking is best effort. Nothing uploads automatically. Media, models and the chat database are excluded.</string>
+  <string name="diagnostics_native_status">Native log capture: %1$s. Availability varies by device.</string>
+  <string name="diagnostics_recovered_crash">Crash logs recovered. Save ZIP includes the previous crash capture.</string>
+  <string name="diagnostics_export_while_recording">You can save a ZIP while recording continues.</string>
+  <string name="diagnostics_view_logs">View live logs</string>
+  <string name="diagnostics_note_label">What happened? (optional)</string>
+  <string name="diagnostics_note_hint">Describe the issue and how to reproduce it. Added to the ZIP.</string>
+  <string name="diagnostics_save_zip">Save diagnostics ZIP to phone</string>
+  <string name="diagnostics_saving">Preparing and saving ZIP…</string>
+  <string name="diagnostics_save_success">Diagnostics ZIP saved to your chosen location.</string>
+  <string name="diagnostics_save_failed">Could not save the ZIP. Check available storage and try another location.</string>
+  <string name="diagnostics_save_interrupted">The app restarted before saving finished. Please save the ZIP again.</string>
+  <string name="diagnostics_save_cancelled">Save cancelled. Captured logs are still on this device.</string>
+  <string name="diagnostics_picker_unavailable">Could not open the file picker. Please try again.</string>
+  <string name="diagnostics_clear_logs">Clear captured logs</string>
+  <string name="diagnostics_clear_title">Clear captured diagnostics?</string>
+  <string name="diagnostics_clear_detail">This removes retained logs and crash reports from Gallery. Export a ZIP first if you need them. Recording will keep its current setting. Previously saved ZIPs are unchanged.</string>
+  <string name="diagnostics_cancel">Cancel</string>
+  <string name="diagnostics_close">Close</string>
+  <string name="diagnostics_live_logs">Live diagnostics</string>
+  <string name="diagnostics_session">Session: %1$s</string>
+  <string name="diagnostics_live_detail">Showing the latest %1$d lines. The ZIP includes the full retained capture.</string>
+  <string name="diagnostics_follow_logs">Follow new logs</string>
+  <string name="diagnostics_no_logs">No captured lines yet. Turn on recording and use the app to collect diagnostics.</string>
 
 </resources>

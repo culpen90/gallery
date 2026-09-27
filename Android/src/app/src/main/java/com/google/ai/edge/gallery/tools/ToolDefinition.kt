@@ -16,8 +16,44 @@
 
 package com.google.ai.edge.gallery.tools
 
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.litertlm.ToolSet
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
+
+private val diagnosticToolCallId = AtomicLong()
+
+/** One pair of metadata events per call; arguments and results remain outside the event log. */
+internal fun <T> ToolDefinition.recordToolCall(
+  name: String,
+  block: () -> Map<String, T>,
+): Map<String, T> {
+  val callId = diagnosticToolCallId.incrementAndGet()
+  val startedNs = System.nanoTime()
+  DiagnosticsRecorder.event("tool", "started call=$callId name=$name")
+  try {
+    val result = block()
+    val outcome =
+      when {
+        result.containsKey("error") || result["status"] == "failed" -> "failed"
+        result["status"] == "succeeded" -> "succeeded"
+        else -> "returned"
+      }
+    DiagnosticsRecorder.event(
+      "tool",
+      "$outcome call=$callId name=$name duration_ms=${(System.nanoTime() - startedNs) / 1_000_000}",
+    )
+    return result
+  } catch (e: Exception) {
+    DiagnosticsRecorder.event(
+      "tool",
+      "${if (e is CancellationException) "cancelled" else "failed"} call=$callId name=$name " +
+        "error_type=${e.javaClass.simpleName} duration_ms=${(System.nanoTime() - startedNs) / 1_000_000}",
+    )
+    throw e
+  }
+}
 
 /**
  * Execution context injected into [ToolDefinition] before each loop turn. Responsible for

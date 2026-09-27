@@ -21,6 +21,7 @@ import android.util.Log
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.InferenceMetricsParam
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.proto.LlmConfig
 import java.util.Locale
@@ -144,6 +145,11 @@ internal class MetricsLogger(internal val model: Model, internal val taskId: Str
         else -> return
       }
     val llmConfig = model.toLlmConfig()
+    DiagnosticsRecorder.event(
+      "model",
+      "initialization_finished model=${model.name} task=$taskId status=${status.name} " +
+        "duration_ms=${initDuration.inWholeMilliseconds} accelerator=${model.currentAccelerator}",
+    )
     logModelInitToLogcat(initDuration, status, llmConfig, errorMessage)
     logModelInitToFirebase(initDuration, status, llmConfig)
   }
@@ -209,6 +215,16 @@ internal class MetricsLogger(internal val model: Model, internal val taskId: Str
 
   /** Dispatches turn-end inference metrics to Logcat and Firebase Analytics. */
   fun logMetrics(metrics: InferenceMetrics) {
+    DiagnosticsRecorder.event(
+      "performance",
+      "turn_finished model=${model.name} task=$taskId accelerator=${metrics.metadata.accelerator} " +
+        "turn=${metrics.metadata.turnIndex} status=${metrics.metadata.status.code.name} " +
+        "cancellation=${metrics.metadata.status.cancellationReason.name}; " +
+        "latency: ${formatLatency(metrics.inference.latency)}; " +
+        "tokens: ${formatTokens(metrics.inference.tokens)}; " +
+        "context: ${formatContext(metrics.inference.context)}; " +
+        "memory: ${formatMemory(metrics.memory)}",
+    )
     logToLogcat(metrics)
     logToFirebase(metrics)
   }

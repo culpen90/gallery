@@ -79,6 +79,7 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="uiMode"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
             <!-- This is for putting the app into launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -95,6 +96,12 @@
                 <data android:scheme="com.google.ai.edge.gallery" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.google.ai.edge.gallery.ui.diagnostics.DiagnosticsActivity"
+            android:exported="true"
+            android:label="@string/diagnostics_title"
+            android:theme="@style/Theme.Gallery" />
 
         <!-- Set themes for activities that are used for viewing open source licenses -->
         <activity
