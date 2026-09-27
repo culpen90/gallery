@@ -48,6 +48,7 @@ class RunMcpTool(
     @ToolParam(description = "The name of the tool to run.") toolName: String,
     @ToolParam(description = "The parameters passed to tool as input") input: String,
   ): Map<String, String> {
+    toolExecutionDeniedResult()?.let { return it }
     Log.d(TAG, "Run MCP tool:\n- name: $toolName\n- input: $input")
     return runBlocking(Dispatchers.IO) {
       val serverState =

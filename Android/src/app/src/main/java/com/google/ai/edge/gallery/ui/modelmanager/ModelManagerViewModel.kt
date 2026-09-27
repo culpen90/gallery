@@ -23,7 +23,6 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.AppLifecycleProvider
-import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.common.ProjectConfig
 import com.google.ai.edge.gallery.common.SystemPromptHelper
@@ -99,6 +98,8 @@ private const val TAG = "AGModelManagerViewModel"
 private const val TEXT_INPUT_HISTORY_MAX_SIZE = 50
 private const val MODEL_ALLOWLIST_FILENAME = "model_allowlist.json"
 private const val MODEL_ALLOWLIST_TEST_FILENAME = "model_allowlist_test.json"
+// Catalog compatibility follows the upstream schema, independently of this fork's app version.
+private const val MODEL_ALLOWLIST_VERSION = "1_0_19"
 private const val ALLOWLIST_BASE_URL =
   "https://raw.githubusercontent.com/google-ai-edge/gallery/refs/heads/main/model_allowlists"
 private const val PLACEHOLDER_FILENAME = "placeholder"
@@ -1254,8 +1255,7 @@ constructor(
 
         if (modelAllowlist == null) {
           // Load from github.
-          var version = BuildConfig.VERSION_NAME.replace(".", "_")
-          val url = getAllowlistUrl(version)
+          val url = getAllowlistUrl(MODEL_ALLOWLIST_VERSION)
           Log.d(TAG, "Loading model allowlist from internet. Url: $url")
           val data = getJsonResponse<ModelAllowlist>(url = url)
           modelAllowlist = data?.jsonObj
@@ -1270,7 +1270,13 @@ constructor(
         }
 
         if (modelAllowlist == null) {
-          _uiState.update { it.copy(loadingModelAllowlistError = "Failed to load model list") }
+          // Keep first launch usable offline or before this app version's remote catalog exists.
+          modelAllowlist = readBundledModelAllowlist()
+        }
+        if (modelAllowlist == null) {
+          _uiState.update {
+            it.copy(loadingModelAllowlist = false, loadingModelAllowlistError = "Failed to load model list")
+          }
           return@launch
         }
 
@@ -1379,9 +1385,22 @@ constructor(
         Log.d(TAG, "loadModelAllowlist: Done")
       } catch (e: Exception) {
         Log.e(TAG, "Failed to load model allowlist", e)
+        _uiState.update {
+          it.copy(loadingModelAllowlist = false, loadingModelAllowlistError = "Failed to load model list")
+        }
       }
     }
   }
+
+  private fun readBundledModelAllowlist(): ModelAllowlist? =
+    try {
+      context.assets.open("model_allowlist.json").bufferedReader().use { reader ->
+        Gson().fromJson(reader, ModelAllowlist::class.java)
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to load bundled model catalog", e)
+      null
+    }
 
   fun clearLoadModelAllowlistError() {
     val curTasks = getActiveCustomTasks().map { it.task }

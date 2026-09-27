@@ -56,6 +56,7 @@ class RunJsTool(
     )
     data: String,
   ): Map<String, Any> {
+    toolExecutionDeniedResult()?.let { return it }
     return runBlocking(Dispatchers.Default) {
       Log.d(
         TAG,

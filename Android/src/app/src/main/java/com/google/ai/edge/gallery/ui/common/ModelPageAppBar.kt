@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,6 +77,7 @@ fun ModelPageAppBar(
   modelPreparing: Boolean,
   modifier: Modifier = Modifier,
   hideModelSelector: Boolean = false,
+  unifiedInterface: Boolean = false,
   useThemeColor: Boolean = false,
   onConfigChanged: (oldConfigValues: Map<String, Any>, newConfigValues: Map<String, Any>) -> Unit =
     { _, _ ->
@@ -109,10 +111,14 @@ fun ModelPageAppBar(
             if (useThemeColor) MaterialTheme.colorScheme.onSurface
             else getTaskIconColor(task = task)
           val icon = task.icon ?: task.iconVectorResourceId?.let { ImageVector.vectorResource(it) }
-          if (icon != null) {
+          if (icon != null && !unifiedInterface) {
             Icon(icon, tint = tintColor, modifier = Modifier.size(24.dp), contentDescription = null)
           }
-          Text(task.label, style = MaterialTheme.typography.titleMedium, color = tintColor)
+          Text(
+            if (unifiedInterface) stringResource(R.string.unified_chat_title) else task.label,
+            style = MaterialTheme.typography.titleMedium,
+            color = if (unifiedInterface) MaterialTheme.colorScheme.onSurface else tintColor,
+          )
         }
 
         // Model chips pager.
@@ -134,8 +140,10 @@ fun ModelPageAppBar(
       val enableBackButton = !isModelInitializing && !inProgress
       IconButton(onClick = onBackClicked, enabled = enableBackButton) {
         Icon(
-          imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-          contentDescription = stringResource(R.string.cd_navigate_back_icon),
+          imageVector = if (unifiedInterface) Icons.Rounded.Menu else Icons.AutoMirrored.Rounded.ArrowBack,
+          contentDescription = stringResource(
+            if (unifiedInterface) R.string.unified_chat_menu else R.string.cd_navigate_back_icon
+          ),
         )
       }
     },

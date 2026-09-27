@@ -52,6 +52,10 @@ message ChatMessageProto {
   repeated string image_file_paths = 9;
   // A list of audio recordings associated with this message.
   repeated AudioMessageProto audio_clips = 10;
+  // Audio Scribe intent for a text label paired with an audio recording. Empty for ordinary text.
+  string audio_input_mode = 11;
+  // Written context supplied alongside an Audio Scribe recording.
+  string audio_input_context = 12;
 }
 
 // Represents an audio recording associated with a chat session message.

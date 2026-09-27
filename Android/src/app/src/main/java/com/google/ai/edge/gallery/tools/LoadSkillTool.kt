@@ -35,6 +35,7 @@ class LoadSkillTool(private val skillsProvider: SkillsProvider) : ToolDefinition
   fun loadSkill(
     @ToolParam(description = "The name of the skill to load.") skillName: String
   ): Map<String, String> {
+    toolExecutionDeniedResult()?.let { return it }
     return runBlocking(Dispatchers.Default) {
       val skill = skillsProvider.loadSkill(skillName)
       val skillContent = skill?.getSkillContent() ?: "Skill not found"

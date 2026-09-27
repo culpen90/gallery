@@ -54,73 +54,6 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "AGAgentChatTask"
 
-// The default system prompt for the agent chat task with both skills and MCP tools.
-const val DEFAULT_SYSTEM_PROMPT =
-  """
-  You are an AI assistant that helps users by answering questions and completing tasks using skills and tools. For EVERY new task, request, or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps.
-
-  CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
-
-  1. EVALUATE AND ROUTE:
-     Determine if the request should be handled by a "Skill" (requires loading instructions) or directly by an "MCP Tool".
-     - If it is a Skill: Go to Step 2.
-     - If it is an MCP Tool: Go to Step 4.
-     - If nothing is found, output "No skills or tools found" and stop.
-
-  --- SKILLS ---
-  ___SKILLS___
-
-  --- MCP TOOLS ---
-  ___TOOLS___
-
-  ==================================================
-  FLOW A: SKILL EXECUTION
-  ==================================================
-
-  2. Find the most relevant skill from the --- SKILLS --- list. You MUST NOT use `run_intent` or `runMcpTool` under any circumstances at this step.
-
-  3. Use the `load_skill` tool to read its instructions. Follow the skill's instructions exactly to complete the task.
-     - You MUST NOT output any intermediate thoughts or status updates. No exceptions!
-     - Output ONLY the final result when successful. It should contain a one-sentence summary of the action taken and the final result of the skill.
-     - Stop here once Flow A is complete.
-
-  ==================================================
-  FLOW B: MCP TOOL DIRECT EXECUTION
-  ==================================================
-
-  4. Find the most relevant tool from the --- MCP TOOLS --- list.
-
-  5. Call the `runMcpTool` tool with the following parameters:
-     - `toolName`: The name of the tool to run. Use the exact name from the list above. Do not hallucinate the name. Pay attention to casing and plurals.
-     - `input`: The input JSON object that matches the tool's expected input schema.
-
-  6. Output ONLY the final result returned by the tool. You MUST NOT output any intermediate thoughts or status updates. No exceptions!
-  """
-
-val DEFAULT_SYSTEM_PROMPT_TRIMMED = DEFAULT_SYSTEM_PROMPT.trimIndent()
-
-// The default system prompt for the agent chat task with only skills.
-const val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY =
-  """
-  You are an AI assistant that helps users by answering questions and completes tasks using skills. For EVERY new task or request or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps.
-
-  CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
-
-  1. First, find the most relevant skill from the following list:
-
-  ___SKILLS___
-
-  After this step you MUST go to next step. You MUST NOT use `run_intent` under any circumstances at this step.
-
-  2. If a relevant skill exists, use the `load_skill` tool to read its instructions. You MUST NOT use `run_intent` under any circumstances at this step.
-
-  3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
-
-  4. If no relevant skill is found, output "No relevant skills found" and stop.
-  """
-
-val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY_TRIMMED = DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY.trimIndent()
-
 class AgentChatTask
 @Inject
 constructor(
@@ -132,13 +65,12 @@ constructor(
   override val task: Task by lazy {
     Task(
       id = BuiltInTaskId.LLM_AGENT_CHAT,
-      label = context.getString(R.string.task_label_agent_skills),
+      label = context.getString(R.string.unified_chat_label),
       category = Category.LLM,
-      iconVectorResourceId = R.drawable.agent,
-      newFeature = true,
+      iconVectorResourceId = R.drawable.chat_spark,
       models = mutableListOf(),
-      description = context.getString(R.string.task_desc_agent_skills),
-      shortDescription = context.getString(R.string.task_short_desc_agent_skills),
+      description = context.getString(R.string.unified_chat_description),
+      shortDescription = context.getString(R.string.unified_chat_description),
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
       sourceCodeUrl =
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/customtasks/agentchat/",
@@ -213,6 +145,7 @@ constructor(
       navigateUp = myData.onNavUp,
       agentTools = agentTools,
       initialQuery = myData.initialQuery,
+      unifiedInterface = myData.unifiedInterface,
     )
   }
 }
@@ -260,20 +193,5 @@ internal object AgentChatTaskModule {
       serializer = McpServersSerializer,
       produceFile = { context.dataStoreFile("mcp_servers.pb") },
     )
-  }
-}
-
-// Check whether the system prompt is the default one.
-fun isDefaultSystemPrompt(prompt: String): Boolean {
-  return prompt == DEFAULT_SYSTEM_PROMPT_TRIMMED ||
-    prompt == DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY_TRIMMED
-}
-
-// Returns the effective default system prompt depending on whether MCP tools are enabled.
-fun getEffectiveBaseSystemPrompt(currentPrompt: String, hasMcpTools: Boolean): String {
-  return if (isDefaultSystemPrompt(currentPrompt)) {
-    if (hasMcpTools) DEFAULT_SYSTEM_PROMPT_TRIMMED else DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY_TRIMMED
-  } else {
-    currentPrompt
   }
 }

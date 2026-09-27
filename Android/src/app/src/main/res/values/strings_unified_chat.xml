@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="unified_chat_title">Chat</string>
+    <string name="unified_chat_menu">Open menu</string>
+    <string name="unified_chat_welcome">How can I help?</string>
+    <string name="unified_chat_setup">Choose an on-device model to start chatting. Models with Agent Skills can take actions, and audio-capable models can answer your voice or transcribe recordings.</string>
+    <string name="unified_chat_choose_model">Choose a model</string>
+    <string name="unified_chat_notifications">Scheduled notifications</string>
+    <string name="unified_chat_no_skills">This model supports conversation. Choose an Agent Skills model from Models to use actions.</string>
+  <string name="unified_chat_label">Chat</string>
+  <string name="unified_chat_description">Chat, use your voice, and ask Agent Skills to help with actions.</string>
+  <string name="unified_chat_welcome_description">Ask a question, work through an idea, or ask me to take action. Agent Skills are here when you need them.</string>
+  <string name="unified_chat_voice_hint">Use the microphone to talk to the model or transcribe audio.</string>
+</resources>

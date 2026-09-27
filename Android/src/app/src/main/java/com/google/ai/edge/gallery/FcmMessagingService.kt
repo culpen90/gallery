@@ -16,15 +16,18 @@
 
 package com.google.ai.edge.gallery
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -71,6 +74,15 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
     imageUrl: android.net.Uri?,
     deeplink: String? = null,
   ) {
+    if (
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+          PackageManager.PERMISSION_GRANTED
+    ) {
+      Log.d(TAG, "Notification permission is not granted; skipping push notification")
+      return
+    }
+
     val intent =
       if (!deeplink.isNullOrEmpty()) {
         Intent(Intent.ACTION_VIEW, deeplink.toUri()).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }

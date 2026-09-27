@@ -32,5 +32,7 @@ data class AgentRequest(
     const val LITERTLM_EXTRA_CONTEXT = "litertlm_extra_context"
     const val SESSION_ID = "sessionId"
     const val MESSAGE_INDEX = "messageIndex"
+    /** False for transcription turns, where quoted speech must never trigger tools. */
+    const val ALLOW_TOOLS = "allowTools"
   }
 }

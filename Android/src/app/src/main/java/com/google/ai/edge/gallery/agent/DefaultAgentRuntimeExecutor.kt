@@ -141,7 +141,10 @@ open class DefaultAgentRuntimeExecutor(
 
     toolDispatcher.setupExecutionContext(
       tools = toolsProvider.getAvailableTools(),
-      context = session.toolExecutionContext,
+      context =
+        session.toolExecutionContext.copy(
+          allowTools = request.metadata[AgentRequest.ALLOW_TOOLS] != false
+        ),
     )
 
     val images = request.attachments.filterIsInstance<Attachment.ImageBitmap>().map { it.bitmap }

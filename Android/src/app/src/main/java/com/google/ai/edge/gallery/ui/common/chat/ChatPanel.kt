@@ -148,6 +148,7 @@ fun ChatPanel(
   showStopButtonInInputWhenInProgress: Boolean = false,
   showImagePicker: Boolean = false,
   showAudioPicker: Boolean = false,
+  unifiedInterface: Boolean = false,
   emptyStateComposable: @Composable (Model) -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsState()
@@ -572,7 +573,10 @@ fun ChatPanel(
                       horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                       // Run again button.
-                      if (selectedModel.showRunAgainButton) {
+                      if (
+                        selectedModel.showRunAgainButton &&
+                          !(message is ChatMessageText && message.data is AudioInputRequest)
+                      ) {
                         MessageActionButton(
                           label = stringResource(R.string.run_again),
                           icon = Icons.Rounded.Refresh,
@@ -677,6 +681,7 @@ fun ChatPanel(
 
       val modelNotSupportImageMsg = stringResource(R.string.model_not_support_image_message)
       val modelNotSupportAudioMsg = stringResource(R.string.model_not_support_audio_message)
+      val audioScribeNeedsModelMsg = stringResource(R.string.audio_scribe_needs_audio_model)
       val imageLimitIgnoredMsg = stringResource(R.string.image_limit_ignored_message)
 
       MessageInputText(
@@ -713,6 +718,7 @@ fun ChatPanel(
         onStopButtonClicked = onStopButtonClicked,
         onSetAudioRecorderVisible = { start ->
           showAudioRecorder = start
+          if (start) focusManager.clearFocus()
           if (!showAudioRecorder) {
             curAmplitude = 0
           }
@@ -727,6 +733,7 @@ fun ChatPanel(
         showMcpPicker = task.id === BuiltInTaskId.LLM_AGENT_CHAT,
         showImagePicker = showImagePicker,
         showAudioPicker = showAudioPicker,
+        unifiedInterface = unifiedInterface,
         showStopButtonWhenInProgress = showStopButtonInInputWhenInProgress,
         onImageLimitExceeded = { showImageLimitBanner = true },
         onImagesIgnored = {
@@ -738,7 +745,11 @@ fun ChatPanel(
           }
         },
         onModelNotSupportImage = { customErrorMessage = modelNotSupportImageMsg },
-        onModelNotSupportAudio = { customErrorMessage = modelNotSupportAudioMsg },
+        onModelNotSupportAudio = {
+          customErrorMessage =
+            if (unifiedInterface) audioScribeNeedsModelMsg else modelNotSupportAudioMsg
+        },
+        onAudioInputError = { customErrorMessage = it },
       )
     }
   }

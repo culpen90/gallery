@@ -15,15 +15,18 @@
  */
 package com.google.ai.edge.gallery.notifications
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import dagger.hilt.android.EntryPointAccessors
 
@@ -82,8 +85,16 @@ class NotificationReceiver : BroadcastReceiver() {
           .setContentIntent(pendingIntent)
           .setPriority(NotificationCompat.PRIORITY_HIGH)
 
-      notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
-      // If the notification is not repeating, remove it from the schedule after it is sent.
+      if (
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+          ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+      ) {
+        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+      } else {
+        Log.d(TAG, "Notification permission is not granted; skipping scheduled notification")
+      }
+      // A one-time alarm has fired even if notification permission was revoked.
       if (
         !intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false) &&
           id.isNotEmpty()

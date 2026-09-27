@@ -81,6 +81,7 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -112,6 +113,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -139,6 +142,7 @@ import java.io.FileInputStream
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "AGMessageInputText"
 
@@ -178,13 +182,20 @@ fun MessageInputText(
   showMcpPicker: Boolean = false,
   showImagePicker: Boolean = false,
   showAudioPicker: Boolean = false,
+  unifiedInterface: Boolean = false,
   showStopButtonWhenInProgress: Boolean = false,
   onImageLimitExceeded: () -> Unit = {},
   onImagesIgnored: () -> Unit = {},
   onModelNotSupportImage: () -> Unit = {},
   onModelNotSupportAudio: () -> Unit = {},
+  onAudioInputError: (String) -> Unit = {},
 ) {
   val context = LocalContext.current
+  val audioPermissionDeniedMessage = stringResource(R.string.audio_scribe_permission_denied)
+  val audioFileErrorMessage = stringResource(R.string.audio_scribe_file_error)
+  val emptyAudioMessage = stringResource(R.string.audio_scribe_empty_recording)
+  val voiceInputLabel = stringResource(R.string.audio_scribe_talk)
+  val transcriptionInputLabel = stringResource(R.string.audio_scribe_transcribe)
   val lifecycleOwner = LocalLifecycleOwner.current
   val scope = rememberCoroutineScope()
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
@@ -193,6 +204,7 @@ fun MessageInputText(
   var showCameraCaptureBottomSheet by remember { mutableStateOf(false) }
   val cameraCaptureSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var showAudioRecorder by remember { mutableStateOf(false) }
+  var audioInputMode by remember { mutableStateOf(AudioInputMode.VOICE_CHAT) }
   val audioRecorderSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var pickedImages by remember { mutableStateOf<List<Bitmap>>(listOf()) }
   var pickedAudioClips by remember { mutableStateOf<List<AudioClip>>(listOf()) }
@@ -224,7 +236,8 @@ fun MessageInputText(
   }
 
   val updatePickedAudioClips: (List<AudioClip>) -> Unit = { audioDataList ->
-    val maxAllowedForThisMessage = (MAX_AUDIO_CLIP_COUNT - audioClipMessageCount).coerceAtLeast(0)
+    val maxAllowedForThisMessage =
+      remainingAudioClipSlots(unifiedInterface, audioClipMessageCount, pendingClipCount = 0)
 
     val combinedSize = pickedAudioClips.size + audioDataList.size
     val withinLimit = combinedSize <= maxAllowedForThisMessage
@@ -265,8 +278,27 @@ fun MessageInputText(
       permissionGranted ->
       if (permissionGranted) {
         handleClickRecordAudioClip()
+      } else {
+        onAudioInputError(audioPermissionDeniedMessage)
       }
     }
+
+  val startAudioInput: (AudioInputMode) -> Unit = { mode ->
+    showAddContentMenu = false
+    if (!modelManagerUiState.selectedModel.supportAudio) {
+      onModelNotSupportAudio()
+    } else {
+      audioInputMode = mode
+      if (
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+          PackageManager.PERMISSION_GRANTED
+      ) {
+        handleClickRecordAudioClip()
+      } else {
+        recordAudioClipsPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+      }
+    }
+  }
 
   // Registers a photo picker activity launcher in single-select mode.
   val pickMedia =
@@ -292,17 +324,24 @@ fun MessageInputText(
         result.data?.data?.let { uri ->
           Log.d(TAG, "Picked wav file: $uri")
           scope.launch(Dispatchers.IO) {
-            handleAudioWavSelected(
-              context = context,
-              uri = uri,
-              onAudioSelected = { audioClip ->
+            val audioClip =
+              try {
+                convertWavToMonoWithMaxSeconds(context = context, stereoUri = uri)
+              } catch (e: Exception) {
+                Log.w(TAG, "Failed to read audio file", e)
+                null
+              }
+            withContext(Dispatchers.Main) {
+              if (audioClip == null || audioClip.audioData.isEmpty()) {
+                onAudioInputError(audioFileErrorMessage)
+              } else {
                 updatePickedAudioClips(
                   listOf(
                     AudioClip(audioData = audioClip.audioData, sampleRate = audioClip.sampleRate)
                   )
                 )
-              },
-            )
+              }
+            }
           }
         }
       } else {
@@ -364,6 +403,28 @@ fun MessageInputText(
         }
 
         Spacer(modifier = Modifier.width(16.dp))
+      }
+    }
+
+    if (unifiedInterface && pickedAudioClips.isNotEmpty()) {
+      Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Text(
+          text = stringResource(R.string.audio_scribe_clip_hint),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          FilterChip(
+            selected = audioInputMode == AudioInputMode.VOICE_CHAT,
+            onClick = { audioInputMode = AudioInputMode.VOICE_CHAT },
+            label = { Text(stringResource(R.string.audio_scribe_talk)) },
+          )
+          FilterChip(
+            selected = audioInputMode == AudioInputMode.TRANSCRIBE,
+            onClick = { audioInputMode = AudioInputMode.TRANSCRIBE },
+            label = { Text(stringResource(R.string.audio_scribe_transcribe)) },
+          )
+        }
       }
     }
 
@@ -546,7 +607,11 @@ fun MessageInputText(
                       // Audio related menu items.
                       if (showAudioPicker) {
                         val enableRecordAudioClipMenuItems =
-                          (audioClipMessageCount + pickedAudioClips.size) < MAX_AUDIO_CLIP_COUNT
+                          remainingAudioClipSlots(
+                            unifiedInterface,
+                            audioClipMessageCount,
+                            pickedAudioClips.size,
+                          ) > 0
                         val isAudioSupported = modelManagerUiState.selectedModel.supportAudio
                         val audioItemColors =
                           MenuDefaults.itemColors(
@@ -564,34 +629,18 @@ fun MessageInputText(
                               horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                               Icon(Icons.Rounded.Mic, contentDescription = null)
-                              Text(stringResource(R.string.media_picker_record_audio))
+                              Text(
+                                stringResource(
+                                  if (unifiedInterface) R.string.audio_scribe_record_transcript
+                                  else R.string.media_picker_record_audio
+                                )
+                              )
                             }
                           },
                           enabled = enableRecordAudioClipMenuItems,
                           colors = audioItemColors,
                           onClick = {
-                            if (!isAudioSupported) {
-                              onModelNotSupportAudio()
-                              showAddContentMenu = false
-                              return@DropdownMenuItem
-                            }
-                            // Check permission
-                            when (PackageManager.PERMISSION_GRANTED) {
-                              // Already got permission. Call the lambda.
-                              ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.RECORD_AUDIO,
-                              ) -> {
-                                handleClickRecordAudioClip()
-                              }
-
-                              // Otherwise, ask for permission
-                              else -> {
-                                recordAudioClipsPermissionLauncher.launch(
-                                  Manifest.permission.RECORD_AUDIO
-                                )
-                              }
-                            }
+                            startAudioInput(AudioInputMode.TRANSCRIBE)
                           },
                         )
 
@@ -602,7 +651,12 @@ fun MessageInputText(
                               horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                               Icon(Icons.Rounded.AudioFile, contentDescription = null)
-                              Text(stringResource(R.string.media_picker_pick_wav))
+                              Text(
+                                stringResource(
+                                  if (unifiedInterface) R.string.audio_scribe_import
+                                  else R.string.media_picker_pick_wav
+                                )
+                              )
                             }
                           },
                           enabled = enableRecordAudioClipMenuItems,
@@ -614,6 +668,7 @@ fun MessageInputText(
                               return@DropdownMenuItem
                             }
                             showAddContentMenu = false
+                            audioInputMode = AudioInputMode.TRANSCRIBE
 
                             // Show file picker.
                             val intent =
@@ -631,6 +686,29 @@ fun MessageInputText(
                                   .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                               }
                             pickWav.launch(intent)
+                          },
+                        )
+                      }
+
+                      if (unifiedInterface && showSkillsPicker) {
+                        DropdownMenuItem(
+                          text = { Text(stringResource(R.string.skills)) },
+                          leadingIcon = {
+                            Icon(ImageVector.vectorResource(R.drawable.skill), contentDescription = null)
+                          },
+                          onClick = {
+                            showAddContentMenu = false
+                            onSkillsClicked()
+                          },
+                        )
+                      }
+
+                      if (unifiedInterface && showMcpPicker) {
+                        DropdownMenuItem(
+                          text = { Text(stringResource(R.string.mcp)) },
+                          onClick = {
+                            showAddContentMenu = false
+                            onMcpClicked()
                           },
                         )
                       }
@@ -655,7 +733,7 @@ fun MessageInputText(
                   }
 
                   // Skills.
-                  if (showSkillsPicker) {
+                  if (showSkillsPicker && !unifiedInterface) {
                     OutlinedButton(
                       onClick = onSkillsClicked,
                       enabled = !inProgress && !isResettingSession && !modelInitializing,
@@ -685,7 +763,7 @@ fun MessageInputText(
                   }
 
                   // MCP.
-                  if (showMcpPicker) {
+                  if (showMcpPicker && !unifiedInterface) {
                     OutlinedButton(
                       onClick = onMcpClicked,
                       enabled = !inProgress && !isResettingSession && !modelInitializing,
@@ -711,6 +789,20 @@ fun MessageInputText(
                           )
                         }
                       }
+                    }
+                  }
+
+                  if (unifiedInterface && showAudioPicker) {
+                    IconButton(
+                      enabled =
+                        !inProgress && !isResettingSession && !modelInitializing &&
+                          remainingAudioClipSlots(true, audioClipMessageCount, pickedAudioClips.size) > 0,
+                      onClick = { startAudioInput(AudioInputMode.VOICE_CHAT) },
+                    ) {
+                      Icon(
+                        Icons.Rounded.Mic,
+                        contentDescription = stringResource(R.string.audio_scribe_talk),
+                      )
                     }
                   }
                 }
@@ -741,12 +833,19 @@ fun MessageInputText(
                         !isResettingSession &&
                         (curMessage.isNotEmpty() || pickedAudioClips.isNotEmpty()),
                     onClick = {
-                      var message = curMessage.trim()
+                      if (pickedAudioClips.isNotEmpty() && !modelManagerUiState.selectedModel.supportAudio) {
+                        onModelNotSupportAudio()
+                        return@IconButton
+                      }
                       onSendMessage(
                         createMessagesToSend(
                           pickedImages = pickedImages,
                           audioClips = pickedAudioClips,
-                          text = message,
+                          text = curMessage.trim(),
+                          audioInputMode = if (unifiedInterface) audioInputMode else null,
+                          audioInputLabel =
+                            if (audioInputMode == AudioInputMode.VOICE_CHAT) voiceInputLabel
+                            else transcriptionInputLabel,
                         )
                       )
                       pickedImages = listOf()
@@ -773,11 +872,17 @@ fun MessageInputText(
           true ->
             AudioRecorderPanel(
               task = task,
+              autoStart = unifiedInterface,
+              onError = onAudioInputError,
               onSendAudioClip = { audioData ->
                 scope.launch {
-                  updatePickedAudioClips(
-                    listOf(AudioClip(audioData = audioData, sampleRate = SAMPLE_RATE))
-                  )
+                  if (audioData.isEmpty()) {
+                    onAudioInputError(emptyAudioMessage)
+                  } else {
+                    updatePickedAudioClips(
+                      listOf(AudioClip(audioData = audioData, sampleRate = SAMPLE_RATE))
+                    )
+                  }
                   audioRecorderSheetState.hide()
                   showAudioRecorder = false
                   onSetAudioRecorderVisible(false)
@@ -805,6 +910,10 @@ fun MessageInputText(
             pickedImages = pickedImages,
             audioClips = pickedAudioClips,
             text = item,
+            audioInputMode = if (unifiedInterface) audioInputMode else null,
+            audioInputLabel =
+              if (audioInputMode == AudioInputMode.VOICE_CHAT) voiceInputLabel
+              else transcriptionInputLabel,
           )
         )
         pickedImages = listOf()
@@ -1049,16 +1158,6 @@ private fun handleImagesSelected(
   }
 }
 
-private fun handleAudioWavSelected(
-  context: Context,
-  uri: Uri,
-  onAudioSelected: (AudioClip) -> Unit,
-) {
-  convertWavToMonoWithMaxSeconds(context = context, stereoUri = uri)?.let { audioClip ->
-    onAudioSelected(audioClip)
-  }
-}
-
 /**
  * Resizes a given Bitmap to fit within a square of a specified size, while maintaining its original
  * aspect ratio.
@@ -1114,6 +1213,8 @@ private fun createMessagesToSend(
   pickedImages: List<Bitmap>,
   audioClips: List<AudioClip>,
   text: String,
+  audioInputMode: AudioInputMode? = null,
+  audioInputLabel: String = "",
 ): List<ChatMessage> {
   val messages: MutableList<ChatMessage> = mutableListOf()
 
@@ -1152,7 +1253,15 @@ private fun createMessagesToSend(
   }
   messages.addAll(audioMessages)
 
-  if (text.isNotEmpty()) {
+  if (audioMessages.isNotEmpty() && audioInputMode != null) {
+    messages.add(
+      ChatMessageText(
+        content = text.ifEmpty { audioInputLabel },
+        side = ChatSide.USER,
+        data = AudioInputRequest(audioInputMode, text),
+      )
+    )
+  } else if (text.isNotEmpty()) {
     messages.add(ChatMessageText(content = text, side = ChatSide.USER))
   }
 

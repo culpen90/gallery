@@ -16,21 +16,31 @@
 
 package com.google.ai.edge.gallery.customtasks.agentchat
 
+import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.agent.AgentChatExecutor
 import com.google.ai.edge.gallery.agent.AgentRuntimeExecutor
 import com.google.ai.edge.gallery.agent.sessions.LlmSessionManager
 import com.google.ai.edge.gallery.data.SystemPromptRepository
+import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class AgentChatViewModel
 @Inject
 constructor(
-  systemPromptRepository: SystemPromptRepository,
+  private val agentSystemPromptRepository: SystemPromptRepository,
   @AgentChatExecutor runtimeExecutor: AgentRuntimeExecutor,
   llmSessionManager: LlmSessionManager,
-) :
-LlmChatViewModel(systemPromptRepository, runtimeExecutor,
-llmSessionManager)
+) : LlmChatViewModel(agentSystemPromptRepository, runtimeExecutor, llmSessionManager) {
+  /** Save the template, then let the agent screen rebuild its skill and tool execution context. */
+  fun saveAgentSystemPrompt(task: Task, newPrompt: String, onSaved: () -> Unit) {
+    setUISystemPrompt(newPrompt)
+    viewModelScope.launch {
+      agentSystemPromptRepository.updateSystemPrompt(task.id, newPrompt)
+      onSaved()
+    }
+  }
+}

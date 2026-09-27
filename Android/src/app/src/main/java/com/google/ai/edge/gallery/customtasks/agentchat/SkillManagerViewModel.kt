@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "AGSkillManagerVM"
 private val DEFAULT_DISABLED_SKILLS =
-  setOf("calculate-hash", "kitchen-adventure", "text-spinner", "send-email")
+  setOf("calculate-hash", "kitchen-adventure", "text-spinner")
 
 fun getTryOutChips(context: Context): List<SkillTryOutChip> =
   listOf(

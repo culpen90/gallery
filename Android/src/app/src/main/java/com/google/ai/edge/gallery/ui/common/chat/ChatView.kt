@@ -85,6 +85,7 @@ import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.data.awaitInitialization
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.proto.ChatSessionProto
 import com.google.ai.edge.gallery.ui.common.ModelPageAppBar
@@ -92,8 +93,11 @@ import com.google.ai.edge.gallery.ui.common.copyBitmapToClipboard
 import com.google.ai.edge.gallery.ui.common.saveBitmapToMediaStore
 import com.google.ai.edge.gallery.ui.common.shareBitmap
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 private const val TAG = "AGChatView"
 
@@ -137,6 +141,7 @@ fun ChatView(
   curSystemPrompt: String = "",
   onSystemPromptChanged: (String) -> Unit = {},
   sendMessageTrigger: SendMessageTrigger? = null,
+  unifiedInterface: Boolean = false,
 ) {
   val uiState by viewModel.uiState.collectAsState()
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
@@ -152,13 +157,25 @@ fun ChatView(
   val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
   val allHistorySessions by viewModel.historySessions.collectAsState()
   val historySessions =
-    remember(allHistorySessions, task.id) { allHistorySessions.filter { it.taskId == task.id } }
+    remember(allHistorySessions, task.id, unifiedInterface) {
+      val conversationTaskIds =
+        setOf(
+          BuiltInTaskId.LLM_CHAT, BuiltInTaskId.LLM_AGENT_CHAT, BuiltInTaskId.LLM_TEST,
+          BuiltInTaskId.LLM_ASK_IMAGE, BuiltInTaskId.LLM_ASK_AUDIO,
+        )
+      allHistorySessions.filter {
+        if (unifiedInterface) it.taskId in conversationTaskIds else it.taskId == task.id
+      }
+    }
 
   val context = LocalContext.current
 
   val currentMessages = uiState.messagesByModel[selectedModel.name] ?: emptyList()
-  LaunchedEffect(uiState.inProgress, uiState.isResettingSession) {
-    if (!uiState.inProgress && !uiState.isResettingSession && currentMessages.isNotEmpty()) {
+  LaunchedEffect(selectedModel.name, task.id, uiState.inProgress, uiState.isResettingSession) {
+    if (
+      !uiState.inProgress && !uiState.isResettingSession && currentMessages.isNotEmpty() &&
+        viewModel.ownsConversation(task.id, selectedModel)
+    ) {
       viewModel.saveSession(
         sessionId = viewModel.currentSessionId,
         messages = currentMessages,
@@ -173,23 +190,68 @@ fun ChatView(
 
   val handleNavigateUp = {
     navigatingUp = true
+    val instancesToCleanUp =
+      task.models.mapNotNull { model -> model.instance?.let { instance -> model to instance } }
     navigateUp()
 
-    // clean up all models.
     scope.launch(Dispatchers.Default) {
-      for (model in task.models) {
-        modelManagerViewModel.cleanupModel(context = context, task = task, model = model)
+      for ((model, instance) in instancesToCleanUp) {
+        // Returning to the home conversation may already have created a replacement instance.
+        modelManagerViewModel.cleanupModel(
+          context = context, task = task, model = model, instanceToCleanUp = instance,
+        )
       }
     }
   }
 
   // Initialize model when model/download state changes.
   val curDownloadStatus = modelManagerUiState.modelDownloadStatus[selectedModel.name]
-  LaunchedEffect(curDownloadStatus, selectedModel.name) {
+  LaunchedEffect(curDownloadStatus, selectedModel.name, task.id) {
     if (!navigatingUp) {
       if (curDownloadStatus?.status == ModelDownloadStatusType.SUCCEEDED) {
+        if (!viewModel.ownsConversation(task.id, selectedModel)) {
+          viewModel.setIsResettingSession(true)
+          if (selectedModel.initializing) {
+            try {
+              selectedModel.awaitInitialization()
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              Log.w(TAG, "Previous conversation initialization failed; retrying", e)
+            }
+          }
+        }
+        val claim = viewModel.prepareConversation(task.id, selectedModel)
+        if (claim.changed && selectedModel.instance != null) {
+          // Close the executor that actually owns this model before assigning a new conversation.
+          val previousTask =
+            claim.previousOwner
+              ?.takeIf { it.modelName == selectedModel.name }
+              ?.let { owner -> modelManagerViewModel.getCustomTaskByTaskId(owner.taskId)?.task }
+              ?: task
+          suspendCancellableCoroutine<Unit> { continuation ->
+            modelManagerViewModel.cleanupModel(
+              context = context,
+              task = previousTask,
+              model = selectedModel,
+              onDone = { if (continuation.isActive) continuation.resume(Unit) },
+            )
+          }
+        }
         Log.d(TAG, "Initializing model '${selectedModel.name}' from ChatView launched effect")
-        modelManagerViewModel.initializeModel(context, task = task, model = selectedModel)
+        modelManagerViewModel.initializeModel(
+          context, task = task, model = selectedModel, force = claim.changed,
+          onDone = {
+            if (viewModel.ownsConversation(task.id, selectedModel)) {
+              viewModel.setIsResettingSession(false)
+            }
+          },
+          onError = {
+            if (viewModel.ownsConversation(task.id, selectedModel)) {
+              viewModel.setIsResettingSession(false)
+            }
+          },
+        )
       }
     }
   }
@@ -199,7 +261,7 @@ fun ChatView(
   }
 
   // Handle system's edge swipe.
-  BackHandler {
+  BackHandler(enabled = !unifiedInterface || drawerState.isOpen) {
     val isModelInitializing = selectedModel.initializing
     if (drawerState.isOpen) {
       scope.launch { drawerState.close() }
@@ -303,7 +365,8 @@ fun ChatView(
                   model = selectedModel,
                 )
               },
-              onBackClicked = { handleNavigateUp() },
+              unifiedInterface = unifiedInterface,
+              onBackClicked = { if (unifiedInterface) navigateUp() else handleNavigateUp() },
               onModelSelected = { prevModel, curModel ->
                 if (prevModel.name != curModel.name) {
                   modelManagerViewModel.cleanupModel(
@@ -384,6 +447,7 @@ fun ChatView(
                       showStopButtonInInputWhenInProgress = showStopButtonInInputWhenInProgress,
                       showImagePicker = showImagePicker,
                       showAudioPicker = showAudioPicker,
+                      unifiedInterface = unifiedInterface,
                       emptyStateComposable = emptyStateComposable,
                     )
                   // Model download

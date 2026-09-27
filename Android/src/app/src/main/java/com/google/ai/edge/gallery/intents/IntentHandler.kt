@@ -20,11 +20,13 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Events
 import android.provider.CalendarContract.Instances
 import android.util.Log
 import androidx.core.content.ContextCompat.checkSelfPermission
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
 import com.google.ai.edge.gallery.proto.ScheduledNotification
@@ -74,6 +76,11 @@ enum class IntentAction(val action: String) {
   SEND_SMS("send_sms"),
   CREATE_CALENDAR_EVENT("create_calendar_event"),
   READ_CALENDAR_EVENTS("read_calendar_events"),
+  TURN_ON_FLASHLIGHT("turn_on_flashlight"),
+  TURN_OFF_FLASHLIGHT("turn_off_flashlight"),
+  CREATE_CONTACT("create_contact"),
+  SHOW_LOCATION_ON_MAP("show_location_on_map"),
+  OPEN_WIFI_SETTINGS("open_wifi_settings"),
   GET_CURRENT_DATE_AND_TIME("get_current_date_and_time"),
   SCHEDULE_NOTIFICATION("schedule_notification");
 
@@ -116,15 +123,17 @@ object IntentHandler {
           val params = jsonAdapter.fromJson(parameters)
           if (params != null) {
             val intent =
-              Intent(Intent.ACTION_SEND).apply {
+              Intent(Intent.ACTION_SENDTO).apply {
                 data = "mailto:".toUri()
-                type = "text/plain"
                 putExtra(Intent.EXTRA_EMAIL, arrayOf(params.extra_email))
                 putExtra(Intent.EXTRA_SUBJECT, params.extra_subject)
                 putExtra(Intent.EXTRA_TEXT, params.extra_text)
               }
-            context.startActivity(intent)
-            "succeeded"
+            MobileActionsIntentHandler.openActivity(
+              context,
+              intent,
+              "opened: email draft; the user must review and send it",
+            )
           } else {
             Log.e(TAG, "Failed to parse send_email parameters: $parameters")
             "failed"
@@ -143,8 +152,11 @@ object IntentHandler {
             val uri = "smsto:${params.phone_number}".toUri()
             val intent = Intent(Intent.ACTION_SENDTO, uri)
             intent.putExtra("sms_body", params.sms_body)
-            context.startActivity(intent)
-            "succeeded"
+            MobileActionsIntentHandler.openActivity(
+              context,
+              intent,
+              "opened: text message draft; the user must review and send it",
+            )
           } else {
             Log.e(TAG, "Failed to parse send_sms parameters: $parameters")
             "failed"
@@ -160,9 +172,16 @@ object IntentHandler {
           val jsonAdapter = moshi.adapter(CreateCalendarEventParams::class.java)
           val params = jsonAdapter.fromJson(parameters)
           if (params != null) {
-            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val beginTimeMillis = format.parse(params.begin_time)?.time ?: 0L
-            val endTimeMillis = format.parse(params.end_time)?.time ?: 0L
+            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).apply {
+              isLenient = false
+            }
+            val beginTimeMillis = format.parse(params.begin_time)?.time
+              ?: return "failed: the calendar start time is invalid"
+            val endTimeMillis = format.parse(params.end_time)?.time
+              ?: return "failed: the calendar end time is invalid"
+            if (params.title.isBlank() || endTimeMillis <= beginTimeMillis) {
+              return "failed: a calendar title and an end time after the start time are required"
+            }
             val intent =
               Intent(Intent.ACTION_INSERT).apply {
                 data = Events.CONTENT_URI
@@ -171,8 +190,11 @@ object IntentHandler {
                 putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginTimeMillis)
                 putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTimeMillis)
               }
-            context.startActivity(intent)
-            "succeeded"
+            MobileActionsIntentHandler.openActivity(
+              context,
+              intent,
+              "opened: calendar event draft; the user must review and save it",
+            )
           } else {
             Log.e(TAG, "Failed to parse create_calendar_event parameters: $parameters")
             "failed"
@@ -185,6 +207,21 @@ object IntentHandler {
       IntentAction.READ_CALENDAR_EVENTS -> {
         readCalendarEvents(context, parameters, requestPermission)
       }
+      IntentAction.TURN_ON_FLASHLIGHT -> {
+        MobileActionsIntentHandler.setFlashlight(context, true, requestPermission)
+      }
+      IntentAction.TURN_OFF_FLASHLIGHT -> {
+        MobileActionsIntentHandler.setFlashlight(context, false, requestPermission)
+      }
+      IntentAction.CREATE_CONTACT -> {
+        MobileActionsIntentHandler.createContact(context, parameters)
+      }
+      IntentAction.SHOW_LOCATION_ON_MAP -> {
+        MobileActionsIntentHandler.showLocationOnMap(context, parameters)
+      }
+      IntentAction.OPEN_WIFI_SETTINGS -> {
+        MobileActionsIntentHandler.openWifiSettings(context)
+      }
       IntentAction.GET_CURRENT_DATE_AND_TIME -> {
         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss EEEE", Locale.getDefault())
         val currentDateAndTime = sdf.format(Date())
@@ -195,9 +232,20 @@ object IntentHandler {
         currentDateAndTime
       }
       IntentAction.SCHEDULE_NOTIFICATION -> {
-        scheduleNotification(context, parameters)
+        if (
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+              PackageManager.PERMISSION_GRANTED &&
+            !requestPermission(Manifest.permission.POST_NOTIFICATIONS)
+        ) {
+          "failed: notification permission was denied; no reminder was scheduled"
+        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+          "failed: notifications are disabled for this app; enable them in Android settings"
+        } else {
+          scheduleNotification(context, parameters)
+        }
       }
-      null -> "failed"
+      null -> "failed: unsupported action"
     }
   }
 

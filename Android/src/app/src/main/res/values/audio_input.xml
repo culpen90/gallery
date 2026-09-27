@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="audio_scribe_talk">Talk to the model</string>
+  <string name="audio_scribe_transcribe">Transcribe audio</string>
+  <string name="audio_scribe_record_transcript">Record a transcript</string>
+  <string name="audio_scribe_import">Transcribe a WAV file</string>
+  <string name="audio_scribe_clip_hint">Audio Scribe · up to 30 seconds per message</string>
+  <string name="audio_scribe_needs_audio_model">Audio Scribe needs a model that supports audio. Choose an audio-capable model from the model menu at the top of this chat, then try again.</string>
+  <string name="audio_scribe_permission_denied">Allow microphone access to record a voice message. You can also add a WAV file.</string>
+  <string name="audio_scribe_file_error">This audio file could not be read. Choose a valid WAV file and try again.</string>
+  <string name="audio_scribe_record_error">Recording could not start. Check microphone access and try again.</string>
+  <string name="audio_scribe_empty_recording">No audio was recorded. Please try again.</string>
+  <string name="audio_scribe_stop_recording">Finish recording</string>
+  <string name="audio_scribe_tap_to_record">Tap to record · up to 30 seconds</string>
+</resources>

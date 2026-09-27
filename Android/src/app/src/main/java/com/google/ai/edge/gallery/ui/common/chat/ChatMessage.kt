@@ -441,7 +441,12 @@ class ChatMessageThinking(
 fun convertToLitertMessage(chatMessage: ChatMessage): Message? {
   if (chatMessage is ChatMessageText) {
     return when (chatMessage.side) {
-      ChatSide.USER -> Message.user(chatMessage.content)
+      ChatSide.USER -> {
+        val audioRequest = chatMessage.data as? AudioInputRequest
+        Message.user(
+          audioRequest?.let { audioInputPrompt(it.mode, it.typedPrompt) } ?: chatMessage.content
+        )
+      }
       ChatSide.AGENT -> Message.model(chatMessage.content)
       ChatSide.SYSTEM -> null
     }

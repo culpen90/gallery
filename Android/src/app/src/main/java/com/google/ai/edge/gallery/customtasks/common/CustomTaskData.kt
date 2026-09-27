@@ -46,4 +46,6 @@ data class CustomTaskDataForBuiltinTask(
   val onNavUp: () -> Unit,
   // The initial query to be sent to the model when the screen is first loaded.
   val initialQuery: String? = null,
+  // Render as the main conversation, with a menu instead of task navigation.
+  val unifiedInterface: Boolean = false,
 )

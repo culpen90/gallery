@@ -70,6 +70,9 @@ data class SessionConfig(
  *   the one originally used to generate earlier messages.
  */
 interface LlmSessionManager {
+  /** Shared ownership of the single active runtime across chat screens and models. */
+  val conversationSessions: ConversationSessions
+
   /** The unique identifier of the currently active session, or null if uninitialized. */
   var activeSessionId: String?
     get() = null

@@ -138,6 +138,7 @@ abstract class BaseLlmChatTask(
     LlmChatScreen(
       modelManagerViewModel = myData.modelManagerViewModel,
       navigateUp = myData.onNavUp,
+      unifiedInterface = myData.unifiedInterface,
       viewModel = viewModel,
       taskId = task.id,
       allowEditingSystemPrompt = true,
@@ -162,12 +163,12 @@ abstract class BaseLlmChatTask(
             verticalArrangement = Arrangement.spacedBy(12.dp),
           ) {
             Text(
-              stringResource(emptyStateTitleRes),
+              stringResource(if (myData.unifiedInterface) R.string.unified_chat_welcome else emptyStateTitleRes),
               style = emptyStateTitle,
               modifier = Modifier.semantics { heading() },
             )
             Text(
-              stringResource(emptyStateContentRes),
+              stringResource(if (myData.unifiedInterface) R.string.unified_chat_no_skills else emptyStateContentRes),
               style = emptyStateContent,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = TextAlign.Center,

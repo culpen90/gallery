@@ -22,6 +22,7 @@ import com.google.ai.edge.gallery.skills.SkillsProvider
 import com.google.ai.edge.gallery.tools.CallJsSkillResultImage
 import com.google.ai.edge.gallery.tools.CallJsSkillResultWebview
 import com.google.ai.edge.gallery.tools.LoadSkillTool
+import com.google.ai.edge.gallery.tools.PhoneControlTools
 import com.google.ai.edge.gallery.tools.RunIntentTool
 import com.google.ai.edge.gallery.tools.RunJsTool
 import com.google.ai.edge.gallery.tools.RunMcpTool
@@ -75,10 +76,12 @@ open class AgentToolsImpl : AgentTools {
     RunJsTool(skillsProvider = skillsProvider, dataStoreRepository = dataStoreRepository)
   }
 
-  val runIntentTool by lazy { RunIntentTool(context = context, skillsProvider = skillsProvider) }
+  val runIntentTool by lazy { RunIntentTool(context = context.applicationContext, skillsProvider = skillsProvider) }
+
+  val phoneControlTools by lazy { PhoneControlTools(runIntentTool) }
 
   override fun getAvailableTools(): List<ToolDefinition> {
-    return listOf(loadSkillTool, runMcpTool, runJsTool, runIntentTool) + activeTools
+    return listOf(loadSkillTool, runMcpTool, runJsTool, runIntentTool, phoneControlTools) + activeTools
   }
 
   override fun registerTool(tool: ToolDefinition) {

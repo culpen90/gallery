@@ -81,6 +81,7 @@ object ChatMessageMapper {
             isMarkdown = protoMsg.isMarkdown,
             accelerator = protoMsg.accelerator,
             hideSenderLabel = protoMsg.hideSenderLabel,
+            data = restoreAudioInputRequest(protoMsg.audioInputMode, protoMsg.audioInputContext),
           )
         "THINKING" ->
           ChatMessageThinking(
@@ -200,6 +201,11 @@ object ChatMessageMapper {
             .setAccelerator(msg.accelerator)
             .setHideSenderLabel(msg.hideSenderLabel)
             .setIsMarkdown(msg.isMarkdown)
+          (msg.data as? AudioInputRequest)?.let { audioRequest ->
+            builder
+              .setAudioInputMode(audioRequest.mode.name)
+              .setAudioInputContext(audioRequest.typedPrompt)
+          }
         }
         is ChatMessageThinking -> {
           builder

@@ -30,7 +30,20 @@ import kotlinx.coroutines.channels.SendChannel
 data class ToolExecutionContext(
   val taskId: String,
   val actionChannel: SendChannel<ToolAction>? = null,
+  val allowTools: Boolean = true,
 )
+
+/** Checked at each native tool entry point because LiteRT-LM can call tools automatically. */
+fun ToolDefinition.toolExecutionDeniedResult(): Map<String, String>? {
+  return if (executionContext?.allowTools == false) {
+    mapOf(
+      "status" to "failed",
+      "error" to "Tools are disabled for this transcription. Return only the spoken words.",
+    )
+  } else {
+    null
+  }
+}
 
 /**
  * ToolDefinition interface extending LiteRT-LM's [ToolSet]. It represents a single tool. All

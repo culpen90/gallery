@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
@@ -60,6 +61,9 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.common.calculatePeakAmplitude
 import com.google.ai.edge.gallery.data.MAX_AUDIO_CLIP_DURATION_SEC
@@ -69,8 +73,10 @@ import com.google.ai.edge.gallery.ui.common.getTaskIconColor
 import com.google.ai.edge.gallery.ui.theme.customColors
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "AGAudioRecorderPanel"
 
@@ -101,21 +107,76 @@ fun AudioRecorderPanel(
   onSendAudioClip: (ByteArray) -> Unit,
   onClose: () -> Unit,
   modifier: Modifier = Modifier,
+  autoStart: Boolean = false,
+  onError: (String) -> Unit = {},
 ) {
   val context = LocalContext.current
+  val recordingErrorMessage = stringResource(R.string.audio_scribe_record_error)
   val coroutineScope = rememberCoroutineScope()
 
   var isRecording by remember { mutableStateOf(false) }
   val elapsedMs = remember { mutableLongStateOf(0L) }
   val audioRecordState = remember { mutableStateOf<AudioRecord?>(null) }
   val audioStream = remember { ByteArrayOutputStream() }
+  val lifecycleOwner = LocalLifecycleOwner.current
 
   val elapsedSeconds by remember {
     derivedStateOf { "%.1f".format(elapsedMs.longValue.toFloat() / 1000f) }
   }
 
-  // Cleanup on Composable Disposal.
-  DisposableEffect(Unit) { onDispose { audioRecordState.value?.release() } }
+  val beginRecording: () -> Unit = {
+    if (!isRecording) {
+      isRecording = true
+      coroutineScope.launch {
+        try {
+          startRecording(
+            context = context,
+            audioRecordState = audioRecordState,
+            audioStream = audioStream,
+            elapsedMs = elapsedMs,
+            onAmplitudeChanged = onAmplitudeChanged,
+            onMaxDurationReached = {
+              val bytes = stopRecording(audioRecordState, audioStream)
+              isRecording = false
+              onSendAudioClip(bytes)
+            },
+          )
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          Log.w(TAG, "Audio recording failed", e)
+          stopRecording(audioRecordState, audioStream)
+          isRecording = false
+          onAmplitudeChanged(0)
+          onError(recordingErrorMessage)
+          onClose()
+        }
+      }
+    }
+  }
+
+  LaunchedEffect(autoStart) {
+    if (autoStart) beginRecording()
+  }
+
+  // Stop microphone capture when leaving the screen or sending the app to the background.
+  DisposableEffect(lifecycleOwner) {
+    val observer =
+      object : DefaultLifecycleObserver {
+        override fun onPause(owner: LifecycleOwner) {
+          stopRecording(audioRecordState, audioStream)
+          isRecording = false
+          onAmplitudeChanged(0)
+          onClose()
+        }
+      }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose {
+      lifecycleOwner.lifecycle.removeObserver(observer)
+      stopRecording(audioRecordState, audioStream)
+      onAmplitudeChanged(0)
+    }
+  }
 
   Row(
     modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -156,7 +217,7 @@ fun AudioRecorderPanel(
       // Info message when there is no recorded clip and the recording has not started yet.
       if (!isRecording) {
         Text(
-          "Tap the record button to start",
+          stringResource(R.string.audio_scribe_tap_to_record),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -180,28 +241,13 @@ fun AudioRecorderPanel(
       IconButton(
         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
         onClick = {
-          coroutineScope.launch {
-            if (!isRecording) {
-              isRecording = true
-              startRecording(
-                context = context,
-                audioRecordState = audioRecordState,
-                audioStream = audioStream,
-                elapsedMs = elapsedMs,
-                onAmplitudeChanged = onAmplitudeChanged,
-                onMaxDurationReached = {
-                  val curRecordedBytes =
-                    stopRecording(audioRecordState = audioRecordState, audioStream = audioStream)
-                  onSendAudioClip(curRecordedBytes)
-                  isRecording = false
-                },
-              )
-            } else {
-              val curRecordedBytes =
-                stopRecording(audioRecordState = audioRecordState, audioStream = audioStream)
-              onSendAudioClip(curRecordedBytes)
-              isRecording = false
-            }
+          if (!isRecording) {
+            beginRecording()
+          } else {
+            val curRecordedBytes =
+              stopRecording(audioRecordState = audioRecordState, audioStream = audioStream)
+            isRecording = false
+            onSendAudioClip(curRecordedBytes)
           }
         },
         colors = IconButtonDefaults.iconButtonColors(containerColor = getTaskIconColor(task = task)),
@@ -210,7 +256,7 @@ fun AudioRecorderPanel(
           if (isRecording) Icons.Rounded.ArrowUpward else Icons.Rounded.Mic,
           contentDescription =
             stringResource(
-              if (isRecording) R.string.cd_send_audio_clip_icon else R.string.cd_start_recording
+              if (isRecording) R.string.audio_scribe_stop_recording else R.string.cd_start_recording
             ),
           tint = Color.White,
         )
@@ -231,6 +277,7 @@ private suspend fun startRecording(
 ) {
   Log.d(TAG, "Start recording...")
   val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+  require(minBufferSize > 0) { "Audio recording is not supported at this sample rate" }
 
   audioRecordState.value?.release()
   val recorder =
@@ -243,25 +290,40 @@ private suspend fun startRecording(
     )
 
   audioRecordState.value = recorder
+  check(recorder.state == AudioRecord.STATE_INITIALIZED) { "Audio recorder could not initialize" }
   val buffer = ByteArray(minBufferSize)
+  recorder.startRecording()
 
   // The function will only return when the recording is done (when stopRecording is called).
   coroutineScope {
     launch(Dispatchers.IO) {
-      recorder.startRecording()
-
       val startMs = System.currentTimeMillis()
       elapsedMs.longValue = 0L
-      while (audioRecordState.value?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-        val bytesRead = recorder.read(buffer, 0, buffer.size)
+      while (audioRecordState.value === recorder && recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+        val bytesRead =
+          try {
+            recorder.read(buffer, 0, buffer.size)
+          } catch (e: IllegalStateException) {
+            if (audioRecordState.value !== recorder) break
+            throw e
+          }
+        if (audioRecordState.value !== recorder) break
         if (bytesRead > 0) {
           val currentAmplitude = calculatePeakAmplitude(buffer = buffer, bytesRead = bytesRead)
-          onAmplitudeChanged(currentAmplitude)
-          audioStream.write(buffer, 0, bytesRead)
+          withContext(Dispatchers.Main) {
+            if (audioRecordState.value === recorder) {
+              onAmplitudeChanged(currentAmplitude)
+              audioStream.write(buffer, 0, bytesRead)
+              elapsedMs.longValue = System.currentTimeMillis() - startMs
+            }
+          }
+        } else if (bytesRead < 0) {
+          error("Audio recorder returned $bytesRead")
         }
-        elapsedMs.longValue = System.currentTimeMillis() - startMs
         if (elapsedMs.longValue >= MAX_AUDIO_CLIP_DURATION_SEC * 1000) {
-          onMaxDurationReached()
+          withContext(Dispatchers.Main) {
+            if (audioRecordState.value === recorder) onMaxDurationReached()
+          }
           break
         }
       }
@@ -276,11 +338,16 @@ private fun stopRecording(
   Log.d(TAG, "Stopping recording...")
 
   val recorder = audioRecordState.value
-  if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-    recorder.stop()
-  }
-  recorder?.release()
   audioRecordState.value = null
+  try {
+    if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+      recorder.stop()
+    }
+  } catch (e: IllegalStateException) {
+    Log.w(TAG, "Recorder was already stopped", e)
+  } finally {
+    recorder?.release()
+  }
 
   val recordedBytes = audioStream.toByteArray()
   audioStream.reset()

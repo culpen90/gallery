@@ -1,25 +1,44 @@
-# Google AI Edge Gallery ✨
+# Gallery — Android Beta
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/google-ai-edge/gallery)](https://github.com/google-ai-edge/gallery/releases)
+[![Android beta](https://img.shields.io/badge/Android-1.0.0--beta.1-blue)](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.1)
 
-**Explore, Experience, and Evaluate the Future of On-Device Generative AI with Google AI Edge.**
+This is an independent fork of [Google AI Edge Gallery](https://github.com/google-ai-edge/gallery). Its first Android release, **1.0.0-beta.1**, brings chat, Agent Skills, phone controls, and Audio Scribe into one conversation. The language model decides in the background whether to reply directly, load a relevant skill, or use a supported phone control.
 
-AI Edge Gallery is the premier destination for running the world's most powerful open-source Large Language Models (LLMs) on your mobile device. Experience high-performance Generative AI directly on your hardware—fully offline, private, and lightning-fast.
+**[Download the Android beta APK](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.1/gallery-1.0.0-beta.1.apk)** · [Release notes](https://github.com/culpen90/gallery/releases/tag/v1.0.0-beta.1) · [Android guide](Android/README.md)
 
-**Now Featuring: Gemma 4**
+The beta requires Android 12 or later and a compatible on-device model. It is distributed from this repository's GitHub releases. The original app's store listings and screenshots below describe upstream releases.
 
-The latest version brings official support for the newly released Gemma 4 family. As the centerpiece of this release, Gemma 4 allows you to test the cutting edge of on-device AI. Experience advanced reasoning, logic, and creative capabilities without ever sending your data to a server.
+## Android features
 
+- **One conversation:** Start in chat, choose a model from the top bar, and find history, settings, and model management nearby.
+- **Automatic Agent Skills:** Enabled skills and connected tools remain available to compatible models. Manage them through the composer's **+** menu.
+- **Mobile Actions:** Ask for the flashlight, Maps, Wi-Fi settings, or contact, email, and calendar drafts. Android permissions still apply; drafts open in the phone's apps for you to review and complete.
+- **Audio Scribe:** Talk to an audio-capable model, record a transcript, or import a WAV file. Recordings support up to 30 seconds per message. Explicit transcription disables tool execution.
+- **On-device models:** Download or import compatible models using the existing Gallery infrastructure. A bundled catalog keeps model setup available when the online catalog and cache cannot be loaded. Skills, phone controls, and audio depend on the selected model's capabilities.
 
-| **Install the app today from Google Play** | **Install the app today from App Store** | **Download for macOS** |
+Inference runs on the device. Model downloads and network-connected skills or tools can use the internet. Hugging Face OAuth is not configured in this fork's beta, so gated downloads require configuration; see the [development notes](DEVELOPMENT.md). Local model import remains available.
+
+## Install the Android beta
+
+1. Download [gallery-1.0.0-beta.1.apk](https://github.com/culpen90/gallery/releases/download/v1.0.0-beta.1/gallery-1.0.0-beta.1.apk) on an Android 12+ device.
+2. Open the APK and allow installation from your browser or file manager when Android prompts you.
+3. Open Gallery and choose or import a compatible model. See the [Android guide](Android/README.md) for voice input, transcription, skills, and phone actions.
+
+## Original Google AI Edge Gallery
+
+This fork retains the upstream project's Android foundation, model infrastructure, and Apache 2.0 license. The upstream app has its own releases and feature layout. Its iOS and macOS distributions are separate from this Android beta; the unified Android interface described above does not apply to those apps.
+
+| **Original Android app** | **Original iOS app** | **Original macOS app** |
 | :--- | :--- | :--- |
 | <a href='https://play.google.com/store/apps/details?id=com.google.ai.edge.gallery'><img alt='Get it on Google Play' height="120" src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'/></a> | <a href="https://apps.apple.com/us/app/google-ai-edge-gallery/id6749645337?itscg=30200&itsct=apps_box_badge&mttnsubad=6749645337" style="display: inline-block;"> <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1771977600" alt="Download on the App Store" style="width: 244px; height: 88px; vertical-align: middle; object-fit: contain;" /></a> | <a href="https://dl.google.com/google-ai-edge-gallery/macos/dmg/GoogleAIEdgeGallery-0.1.0.dmg"><img alt='Download for macOS' width="257" height="97" src="https://github.com/user-attachments/assets/29c70795-93b3-4e8b-8752-0cad4e413182" /></a> |
 
-For users without Google Play access, install the apk from the [**latest release**](https://github.com/google-ai-edge/gallery/releases/latest/)
+For upstream releases and cross-platform documentation, visit the [original repository](https://github.com/google-ai-edge/gallery) and [upstream wiki](https://github.com/google-ai-edge/gallery/wiki).
 
 
-## App Preview
+## Upstream app preview
+
+These screenshots show the original app and its separate task screens, rather than this fork's unified Android interface.
 
 <img width="480" alt="01" src="https://github.com/user-attachments/assets/a809ad78-aef4-4169-91ee-de7213cbb3bd" />
 <img width="480" alt="02" src="https://github.com/user-attachments/assets/1effd10d-f45a-4f7b-9435-f50f1bdd36b6" />
@@ -29,34 +48,6 @@ For users without Google Play access, install the apk from the [**latest release
 <img width="480" alt="06" src="https://github.com/user-attachments/assets/ac9fb77b-81de-4197-9ed3-f6fe58290b3e" />
 <img width="480" alt="07" src="https://github.com/user-attachments/assets/bc86ba07-2eaf-49b1-980f-8a87a85c596f" />
 <img width="480" alt="08" src="https://github.com/user-attachments/assets/1ccf3c95-a195-4a38-ad53-4b9c7b8b3c50" />
-
-## ✨ Core Features
-
-* **Agent Skills**: Transform your LLM from a conversationalist into a proactive assistant. Use the Agent Skills tile to augment model capabilities with tools like Wikipedia for fact-grounding, interactive maps, and rich visual summary cards. You can even load modular skills from a URL or browse community contributions on GitHub Discussions.
-
-* **AI Chat with Thinking Mode**: Engage in fluid, multi-turn conversations and toggle the new Thinking Mode to peek "under the hood." This feature allows you to see the model’s step-by-step reasoning process, which is perfect for understanding complex problem-solving. Note: Thinking Mode currently works with supported models, starting with the Gemma 4 family.
-
-* **Ask Image**: Use multimodal power to identify objects, solve visual puzzles, or get detailed descriptions using your device’s camera or photo gallery.
-
-* **Audio Scribe**: Transcribe and translate voice recordings into text in real-time using high-efficiency on-device language models.
-
-* **Prompt Lab**: A dedicated workspace to test different prompts and single-turn use cases with granular control over model parameters like temperature and top-k.
-
-* **Mobile Actions**: Unlock offline device controls and automated tasks powered entirely by a finetune of FunctionGemma 270m.
-
-* **Tiny Garden**: A fun, experimental mini-game that uses natural language to plant and harvest a virtual garden using a finetune of FunctionGemma 270m.
-
-* **Model Management & Benchmark**: Gallery is a flexible sandbox for a wide variety of open-source models. Easily download models from the list or load your own custom models. Manage your model library effortlessly and run benchmark tests to understand exactly how each model performs on your specific hardware.
-
-* **100% On-Device Privacy**: All model inferences happen directly on your device hardware. No internet is required, ensuring total privacy for your prompts, images, and sensitive data.
-
-## 🏁 Get Started in Minutes!
-
-1. **Check OS Requirement**: Android 12 and up, and iOS 17 and up.
-2.  **Download the App:**
-    - Install the app from [Google Play](https://play.google.com/store/apps/details?id=com.google.ai.edge.gallery) or [App Store](https://apps.apple.com/us/app/google-ai-edge-gallery/id6749645337).
-    - For users without Google Play access: install the apk from the [**latest release**](https://github.com/google-ai-edge/gallery/releases/latest/)
-3.  **Install & Explore:** For detailed installation instructions (including for corporate devices) and a full user guide, head over to our [**Project Wiki**](https://github.com/google-ai-edge/gallery/wiki)!
 
 ## 🛠️ Technology Highlights
 
@@ -72,8 +63,8 @@ Check out the [development notes](DEVELOPMENT.md) for instructions about how to 
 
 This is an **experimental Beta release**, and your input is crucial!
 
-*   🐞 **Found a bug?** [Report it here!](https://github.com/google-ai-edge/gallery/issues/new?assignees=&labels=bug&template=bug_report.md&title=%5BBUG%5D)
-*   💡 **Have an idea?** [Suggest a feature!](https://github.com/google-ai-edge/gallery/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=%5BFEATURE%5D)
+*   🐞 **Found a bug in this fork?** [Report it here!](https://github.com/culpen90/gallery/issues/new?assignees=&labels=bug&template=bug_report.md&title=%5BBUG%5D)
+*   💡 **Have an idea for this fork?** [Suggest a feature!](https://github.com/culpen90/gallery/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=%5BFEATURE%5D)
 
 ## 📄 License
 
@@ -81,7 +72,7 @@ Licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file 
 
 ## 🔗 Useful Links
 
-*   [**Project Wiki (Detailed Guides)**](https://github.com/google-ai-edge/gallery/wiki)
+*   [**Upstream Project Wiki**](https://github.com/google-ai-edge/gallery/wiki)
 *   [Hugging Face LiteRT Community](https://huggingface.co/litert-community)
 *   [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)
 *   [Google AI Edge Documentation](https://ai.google.dev/edge)

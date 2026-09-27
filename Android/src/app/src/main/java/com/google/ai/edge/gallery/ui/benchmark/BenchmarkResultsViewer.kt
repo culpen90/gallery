@@ -128,6 +128,7 @@ fun BenchmarkResultsViewer(
   onClose: () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
+  val locale = LocalConfiguration.current.locales[0]
   val uiState by viewModel.uiState.collectAsState()
   var showConfirmDeleteDialog by remember { mutableStateOf(false) }
   var showLazyListPlacementAnimation by remember { mutableStateOf(false) }
@@ -579,7 +580,7 @@ fun BenchmarkResultsViewer(
                                 label = "First init time",
                                 value =
                                   String.format(
-                                    Locale.getDefault(),
+                                    locale,
                                     "%.2f",
                                     llmResult.stats.firstInitTimeMs,
                                   ),
@@ -796,6 +797,7 @@ private fun StatRow(
   baselineValue: Double? = null,
   lessIsBetter: Boolean = false,
 ) {
+  val locale = LocalConfiguration.current.locales[0]
   Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
     // label.
     Text(
@@ -832,7 +834,7 @@ private fun StatRow(
           if (curBaselineValue != null) {
             val doubleValue = rawValue ?: value.toDoubleOrNull() ?: 0.0
             val pct = (doubleValue - curBaselineValue) / curBaselineValue * 100
-            val strPct = String.format(Locale.getDefault(), "%.1f", abs(pct))
+            val strPct = String.format(locale, "%.1f", abs(pct))
             val sign = if (pct >= 0.0) "+" else "-"
             val betterSign = if (lessIsBetter) "-" else "+"
             val color =

@@ -45,6 +45,7 @@ class RunIntentTool(private val context: Context, private val skillsProvider: Sk
     )
     parameters: String,
   ): Map<String, String> {
+    toolExecutionDeniedResult()?.let { return it }
     return runBlocking(Dispatchers.Default) {
       if (IntentAction.from(intent) == null) {
         Log.w(TAG, "Intent not found: '$intent'")
@@ -64,7 +65,8 @@ class RunIntentTool(private val context: Context, private val skillsProvider: Sk
       val res =
         IntentHandler.handleAction(context, intent, parameters) { permission ->
           val permissionAction = RequestPermissionToolAction(permission = permission)
-          executionContext?.actionChannel?.send(permissionAction)
+          val channel = executionContext?.actionChannel ?: return@handleAction false
+          channel.send(permissionAction)
           permissionAction.result.await()
         }
       return@runBlocking mapOf("action" to intent, "parameters" to parameters, "result" to res)

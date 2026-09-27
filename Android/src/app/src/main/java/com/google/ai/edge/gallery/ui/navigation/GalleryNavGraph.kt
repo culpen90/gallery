@@ -72,6 +72,7 @@ import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.isLegacyTasks
+import com.google.ai.edge.gallery.data.preferredChatTask
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.ui.benchmark.BenchmarkScreen
 import com.google.ai.edge.gallery.ui.common.ErrorDialog
@@ -80,7 +81,6 @@ import com.google.ai.edge.gallery.ui.common.chat.ModelDownloadStatusInfoPanel
 import com.google.ai.edge.gallery.ui.common.tos.TosViewModel
 import com.google.ai.edge.gallery.ui.home.HomeScreen
 import com.google.ai.edge.gallery.ui.modelmanager.GlobalModelManager
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManager
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.notifications.NotificationsScreen
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +88,6 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "AGGalleryNavGraph"
 private const val ROUTE_HOMESCREEN = "homepage"
-private const val ROUTE_MODEL_LIST = "model_list"
 private const val ROUTE_MODEL = "route_model"
 private const val ROUTE_BENCHMARK = "benchmark"
 private const val ROUTE_MODEL_MANAGER = "model_manager"
@@ -149,10 +148,7 @@ fun GalleryNavHost(
   tosViewModel: TosViewModel = hiltViewModel(),
 ) {
   val lifecycleOwner = LocalLifecycleOwner.current
-  var showModelManager by remember { mutableStateOf(false) }
-  var pickedTask by remember { mutableStateOf<Task?>(null) }
-  var enableHomeScreenAnimation by remember { mutableStateOf(true) }
-  var enableModelListAnimation by remember { mutableStateOf(true) }
+  val context = LocalContext.current
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
 
   // Track whether app is in foreground.
@@ -189,62 +185,10 @@ fun GalleryNavHost(
       HomeScreen(
         modelManagerViewModel = modelManagerViewModel,
         tosViewModel = tosViewModel,
-        enableAnimation = enableHomeScreenAnimation,
-        navigateToTaskScreen = { task ->
-          pickedTask = task
-          enableModelListAnimation = true
-          navController.navigate(ROUTE_MODEL_LIST)
-          firebaseAnalytics?.logEvent(
-            GalleryEvent.CAPABILITY_SELECT.id,
-            Bundle().apply { putString("capability_name", task.id) },
-          )
-        },
         onModelsClicked = { navController.navigate(ROUTE_MODEL_MANAGER) },
         onNotificationsClicked = { navController.navigate(ROUTE_NOTIFICATIONS) },
         modifier = modifier,
       )
-    }
-
-    // Model list.
-    composable(
-      route = ROUTE_MODEL_LIST,
-      enterTransition = {
-        if (initialState.destination.route == ROUTE_HOMESCREEN) {
-          slideEnter()
-        } else {
-          EnterTransition.None
-        }
-      },
-      exitTransition = {
-        if (targetState.destination.route == ROUTE_HOMESCREEN) {
-          slideExit()
-        } else {
-          ExitTransition.None
-        }
-      },
-    ) {
-      pickedTask?.let {
-        ModelManager(
-          viewModel = modelManagerViewModel,
-          task = it,
-          enableAnimation = enableModelListAnimation,
-          onModelClicked = { model ->
-            modelManagerViewModel.selectModel(model)
-            navController.navigate("$ROUTE_MODEL/${it.id}/${model.name}")
-          },
-          onBenchmarkClicked = { model ->
-            firebaseAnalytics?.logEvent(
-              GalleryEvent.CAPABILITY_SELECT.id,
-              Bundle().apply { putString("capability_name", "benchmark_${model.name}") },
-            )
-            navController.navigate("$ROUTE_BENCHMARK/${model.name}")
-          },
-          navigateUp = {
-            enableHomeScreenAnimation = false
-            navController.navigateUp()
-          },
-        )
-      }
     }
 
     // Model page.
@@ -280,7 +224,6 @@ fun GalleryNavHost(
                 CustomTaskDataForBuiltinTask(
                   modelManagerViewModel = modelManagerViewModel,
                   onNavUp = {
-                    enableModelListAnimation = false
                     navController.navigateUp()
                   },
                   initialQuery = queryParam,
@@ -298,7 +241,6 @@ fun GalleryNavHost(
                 if (customNavigateUpCallback != null) {
                   customNavigateUpCallback?.invoke()
                 } else {
-                  enableModelListAnimation = false
                   navController.navigateUp()
 
                   if (!customTask.keepModelAlive) {
@@ -365,11 +307,22 @@ fun GalleryNavHost(
         viewModel = modelManagerViewModel,
         tosViewModel = tosViewModel,
         navigateUp = {
-          enableHomeScreenAnimation = false
           navController.navigateUp()
         },
-        onModelSelected = { task, model ->
-          navController.navigate("$ROUTE_MODEL/${task.id}/${model.name}")
+        unifiedInterface = true,
+        onModelSelected = { _, model ->
+          val previousModel = modelManagerUiState.selectedModel
+          preferredChatTask(modelManagerUiState.tasks, previousModel)?.let { previousTask ->
+            if (previousModel.name != model.name) {
+              modelManagerViewModel.cleanupModel(
+                context = context,
+                task = previousTask,
+                model = previousModel,
+              )
+            }
+          }
+          modelManagerViewModel.selectModel(model)
+          navController.popBackStack(ROUTE_HOMESCREEN, inclusive = false)
         },
         onBenchmarkClicked = { model ->
           firebaseAnalytics?.logEvent(
@@ -404,7 +357,6 @@ fun GalleryNavHost(
           initialModel = model,
           modelManagerViewModel = modelManagerViewModel,
           onBackClicked = {
-            enableModelListAnimation = false
             navController.navigateUp()
           },
         )

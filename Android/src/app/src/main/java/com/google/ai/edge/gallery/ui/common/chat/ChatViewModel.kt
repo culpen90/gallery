@@ -23,9 +23,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.agent.AgentRuntimeExecutor
 import com.google.ai.edge.gallery.agent.sessions.LlmSessionManager
+import com.google.ai.edge.gallery.agent.sessions.ConversationClaim
+import com.google.ai.edge.gallery.agent.sessions.ConversationOwner
 import com.google.ai.edge.gallery.common.processLlmResponse
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.proto.ChatSessionProto
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -67,14 +70,36 @@ abstract class ChatViewModel(
   open val runtimeExecutor: AgentRuntimeExecutor? = null,
   val llmSessionManager: LlmSessionManager,
 ) : ViewModel() {
-  /** The identifier for the current active chat session. */
+  private val conversationViewModelId = UUID.randomUUID().toString()
+  @Volatile private var conversationOwner: ConversationOwner? = null
+  @Volatile private var ownedSessionId: String? = null
+
+  /** Keep this screen's ID stable even while another screen owns the runtime. */
   open var currentSessionId: String
     get() =
-      llmSessionManager.activeSessionId
+      ownedSessionId ?: llmSessionManager.activeSessionId
         ?: error("Cannot get currentSessionId: No active session found in LlmSessionManager")
     set(value) {
+      ownedSessionId = value
       llmSessionManager.activeSessionId = value
     }
+
+  /** Claim a fresh conversation on a model/task/screen change; menu returns keep the same one. */
+  fun prepareConversation(taskId: String, model: Model): ConversationClaim {
+    val owner = ConversationOwner(conversationViewModelId, taskId, model.name)
+    val claim = llmSessionManager.conversationSessions.claim(owner)
+    conversationOwner = owner
+    ownedSessionId = claim.sessionId
+    if (claim.changed) clearAllMessages(model)
+    return claim
+  }
+
+  fun ownsConversation(taskId: String, model: Model): Boolean {
+    val owner = conversationOwner ?: return false
+    return owner.taskId == taskId && owner.modelName == model.name &&
+      llmSessionManager.conversationSessions.owns(owner) &&
+      ownedSessionId == llmSessionManager.activeSessionId
+  }
 
   private val _uiState = MutableStateFlow(createUiState())
   val uiState = _uiState.asStateFlow()

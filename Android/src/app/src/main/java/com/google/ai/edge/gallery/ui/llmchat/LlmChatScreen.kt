@@ -50,6 +50,9 @@ import com.google.ai.edge.gallery.data.ModelCapability
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
+import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
+import com.google.ai.edge.gallery.ui.common.chat.AudioInputMode
+import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageImage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageMapper
@@ -91,6 +94,7 @@ fun LlmChatScreen(
   skillCount: Int = 0,
   mcpCount: Int = 0,
   mcpToolsCount: Int = 0,
+  unifiedInterface: Boolean = false,
 ) {
   ChatViewWrapper(
     viewModel = viewModel,
@@ -115,6 +119,7 @@ fun LlmChatScreen(
     showImagePicker = showImagePicker,
     showAudioPicker = showAudioPicker,
     getActiveSkills = getActiveSkills,
+    unifiedInterface = unifiedInterface,
   )
 }
 
@@ -240,6 +245,7 @@ fun ChatViewWrapper(
   skillCount: Int = 0,
   mcpCount: Int = 0,
   mcpToolsCount: Int = 0,
+  unifiedInterface: Boolean = false,
 ) {
   val context = LocalContext.current
   val task = modelManagerViewModel.getTaskById(id = taskId)!!
@@ -271,11 +277,19 @@ fun ChatViewWrapper(
       }
       if ((text.isNotEmpty() && chatMessageText != null) || audioMessages.isNotEmpty()) {
         if (text.isNotEmpty()) {
-          modelManagerViewModel.addTextInputHistory(text)
+          // Audio intent labels are not reusable standalone prompts without their clip.
+          if (chatMessageText?.data !is AudioInputRequest) {
+            modelManagerViewModel.addTextInputHistory(text)
+          }
         }
+        val audioRequest = chatMessageText?.data as? AudioInputRequest
+        val inferenceInput =
+          if (audioMessages.isNotEmpty() && audioRequest != null) {
+            audioInputPrompt(audioRequest.mode, audioRequest.typedPrompt)
+          } else text
         viewModel.generateResponse(
           model = model,
-          input = text,
+          input = inferenceInput,
           images = images,
           audioMessages = audioMessages,
           onFirstToken = onFirstToken,
@@ -290,6 +304,7 @@ fun ChatViewWrapper(
             )
           },
           allowThinking = task.allowCapability(ModelCapability.LLM_THINKING, model),
+          allowTools = audioRequest?.mode != AudioInputMode.TRANSCRIBE,
         )
 
         val activeSkills = getActiveSkills()
@@ -402,5 +417,6 @@ fun ChatViewWrapper(
     onSystemPromptChanged = onSystemPromptChanged,
     sendMessageTrigger = sendMessageTrigger,
     showAudioPicker = showAudioPicker,
+    unifiedInterface = unifiedInterface,
   )
 }

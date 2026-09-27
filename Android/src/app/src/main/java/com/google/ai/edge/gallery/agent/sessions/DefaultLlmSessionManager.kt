@@ -29,10 +29,11 @@ import com.google.ai.edge.gallery.proto.ChatSideProto
 import com.google.ai.edge.gallery.runtime.CleanUpListener
 import com.google.ai.edge.gallery.runtime.ResultListener
 import com.google.ai.edge.gallery.runtime.runtimeHelper
+import com.google.ai.edge.gallery.ui.common.chat.audioInputPrompt
+import com.google.ai.edge.gallery.ui.common.chat.restoreAudioInputRequest
 import com.google.ai.edge.litertlm.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -67,12 +68,12 @@ constructor(
 ) : LlmSessionManager {
 
   private val feedbackLinks = ConcurrentHashMap<String, MutableList<SessionFeedbackLink>>()
-  private val activeSessionIdRef = AtomicReference<String?>(generateSessionId())
+  override val conversationSessions = ConversationSessions()
 
   override var activeSessionId: String?
-    get() = activeSessionIdRef.get()
+    get() = conversationSessions.activeSessionId
     set(value) {
-      activeSessionIdRef.set(value)
+      conversationSessions.activeSessionId = value
     }
 
   override val chatSessions: Flow<List<ChatSessionProto>> = chatSessionRepository.chatSessions
@@ -89,7 +90,7 @@ constructor(
   override suspend fun createSession(config: SessionConfig): String =
     withContext(ioDispatcher) {
       val sessionId = generateSessionId()
-      activeSessionIdRef.set(sessionId)
+      activeSessionId = sessionId
       Log.d(
         TAG,
         "Creating new session $sessionId for model ${config.model.name} and task ${config.taskId}",
@@ -119,7 +120,7 @@ constructor(
     config: SessionConfig,
   ): List<ChatMessageProto> =
     withContext(ioDispatcher) {
-      activeSessionIdRef.set(sessionId)
+      activeSessionId = sessionId
       Log.d(TAG, "Loading session $sessionId for model ${config.model.name}")
       val allSessions = chatSessionRepository.getAllChatSessions()
       val session = allSessions.firstOrNull { it.sessionId == sessionId }
@@ -153,7 +154,7 @@ constructor(
     enableConversationConstrainedDecoding: Boolean,
   ): Unit =
     withContext(ioDispatcher) {
-      activeSessionIdRef.set(sessionId)
+      activeSessionId = sessionId
       Log.d(TAG, "Resetting session $sessionId on model ${config.model.name}")
 
       ensureModelInitialized(config.model, "resetSession")
@@ -188,7 +189,7 @@ constructor(
 
   override suspend fun deleteSession(sessionId: String): Unit =
     withContext(ioDispatcher) {
-      activeSessionIdRef.compareAndSet(sessionId, generateSessionId())
+      conversationSessions.replaceSessionIfCurrent(sessionId)
       Log.d(TAG, "Deleting session $sessionId")
       chatSessionRepository.deleteChatSession(sessionId)
       feedbackLinks.remove(sessionId)
@@ -205,7 +206,7 @@ constructor(
 
   override suspend fun clearAllSessions(): Unit =
     withContext(ioDispatcher) {
-      activeSessionIdRef.set(generateSessionId())
+      activeSessionId = generateSessionId()
       Log.d(TAG, "Clearing all chat sessions")
       chatSessionRepository.clearAllChatSessions()
       feedbackLinks.clear()
@@ -313,7 +314,18 @@ constructor(
   private fun protoToLitertMessage(proto: ChatMessageProto): Message? {
     if (proto.messageType == "TEXT") {
       return when (proto.side) {
-        ChatSideProto.CHAT_SIDE_USER -> Message.user(proto.content)
+        ChatSideProto.CHAT_SIDE_USER -> {
+          val audioRequest =
+            restoreAudioInputRequest(
+              proto.audioInputMode,
+              proto.audioInputContext,
+            )
+          Message.user(
+            audioRequest?.let {
+              audioInputPrompt(it.mode, it.typedPrompt)
+            } ?: proto.content
+          )
+        }
         ChatSideProto.CHAT_SIDE_MODEL -> Message.model(proto.content)
         else -> null
       }

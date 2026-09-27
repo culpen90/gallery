@@ -39,6 +39,7 @@ import com.google.ai.edge.gallery.data.awaitInitialization
 import com.google.ai.edge.gallery.proto.ChatSessionProto
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
+import com.google.ai.edge.gallery.ui.common.chat.AudioInputRequest
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageError
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageLoading
@@ -150,6 +151,7 @@ open class LlmChatViewModelBase(
     onDone: () -> Unit = {},
     onError: (String) -> Unit,
     allowThinking: Boolean = false,
+    allowTools: Boolean = true,
   ) {
     val accelerator = model.currentAccelerator?.name ?: ""
     viewModelScope.launch(Dispatchers.Default) {
@@ -181,6 +183,7 @@ open class LlmChatViewModelBase(
       val metadata =
         buildMap<String, Any> {
           put(AgentRequest.SESSION_ID, currentSessionId)
+          put(AgentRequest.ALLOW_TOOLS, allowTools)
           if (messageIndex >= 0) {
             put(AgentRequest.MESSAGE_INDEX, messageIndex)
           }
@@ -524,6 +527,8 @@ open class LlmChatViewModelBase(
     onError: (String) -> Unit,
     allowThinking: Boolean = false,
   ) {
+    // Audio labels cannot be repeated as text alone; the user must attach the recording again.
+    if (message.data is AudioInputRequest) return
     viewModelScope.launch(Dispatchers.Default) {
       // Wait for model to be initialized.
       if (model.instance == null) {

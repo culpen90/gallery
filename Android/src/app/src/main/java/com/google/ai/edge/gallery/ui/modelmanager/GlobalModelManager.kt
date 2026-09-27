@@ -88,6 +88,7 @@ import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.supportModelBenchmark
+import com.google.ai.edge.gallery.data.preferredChatTask
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.HfModelItemProto
 import com.google.ai.edge.gallery.proto.ImportedModel
@@ -109,6 +110,7 @@ fun GlobalModelManager(
   onBenchmarkClicked: (Model) -> Unit,
   modifier: Modifier = Modifier,
   tosViewModel: TosViewModel? = null,
+  unifiedInterface: Boolean = false,
 ) {
   val uiState by viewModel.uiState.collectAsState()
   val builtInModels = remember { mutableStateListOf<Model>() }
@@ -163,7 +165,7 @@ fun GlobalModelManager(
       }
     }
 
-  LaunchedEffect(uiState.modelImportingUpdateTrigger) {
+  LaunchedEffect(uiState.modelImportingUpdateTrigger, uiState.loadingModelAllowlist, unifiedInterface) {
     val allowlistModels = viewModel.allowlistModels
     val allowlistOrderMap = allowlistModels.withIndex().associate { it.value.name to it.index }
 
@@ -172,6 +174,7 @@ fun GlobalModelManager(
         .getAllModels()
         // Filter to include only top-level models (those without a parent).
         .filter { !it.isVariant }
+        .filter { !unifiedInterface || preferredChatTask(uiState.tasks, it) != null }
         .sortedWith(
           compareBy<Model> { model ->
               // Sort by the index in allowlistModels. Models not in the allowlist come last.
@@ -201,7 +204,9 @@ fun GlobalModelManager(
     val tasks = viewModel.uiState.value.tasks
     val tasksForModel = tasks.filter { task -> task.models.any { it.name == model.name } }
     // If there is only one task for the model, navigate to the model directly.
-    if (tasksForModel.size == 1) {
+    if (unifiedInterface) {
+      preferredChatTask(tasks, model)?.let { onModelSelected(it, model) }
+    } else if (tasksForModel.size == 1) {
       onModelSelected(tasksForModel[0], model)
     }
     // If there are multiple tasks for the model, show a bottom sheet for the user to choose which
