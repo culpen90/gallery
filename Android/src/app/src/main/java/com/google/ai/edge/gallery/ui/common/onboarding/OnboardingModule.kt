@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -18,8 +19,8 @@ package com.google.ai.edge.gallery.ui.common.onboarding
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.dataStoreFile
+import com.google.ai.edge.gallery.security.EncryptedDataStore
 import com.google.ai.edge.gallery.proto.OnboardingData
 import dagger.Module
 import dagger.Provides
@@ -35,9 +36,6 @@ internal object OnboardingModule {
   @Provides
   @Singleton
   fun provideOnboardingDataStore(@ApplicationContext context: Context): DataStore<OnboardingData> {
-    return DataStoreFactory.create(
-      serializer = OnboardingSerializer,
-      produceFile = { context.dataStoreFile("onboarding_data.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("onboarding_data.pb"), OnboardingSerializer)
   }
 }

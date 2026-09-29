@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0. */
 package com.google.ai.edge.gallery.diagnostics
 
@@ -20,6 +21,7 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
 import com.google.ai.edge.gallery.BuildConfig
+import com.google.ai.edge.gallery.security.EncryptedPrivateFile
 import java.io.File
 import java.time.Instant
 import java.time.ZoneOffset
@@ -55,6 +57,8 @@ data class DiagnosticsState(
 
 /** Local, bounded diagnostics. Never uploads or reads the chat/credential stores. */
 object DiagnosticsRecorder {
+  private const val RECOVERY_PURPOSE = "diagnostics/previous-crash.zip"
+  private const val FATAL_PURPOSE = "diagnostics/fatal-marker.txt"
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val mutableState = MutableStateFlow(DiagnosticsState())
   val state = mutableState.asStateFlow()
@@ -74,6 +78,7 @@ object DiagnosticsRecorder {
   private var exitCutoff = 0L
   private var initialized = false
   @Volatile private var ready = false
+  @Volatile private var privateStorageUnlocked = false
   private val recent = ArrayDeque<String>()
 
   private data class Record(val epoch: Long, val category: String, val text: String)
@@ -83,16 +88,16 @@ object DiagnosticsRecorder {
     initialized = true
     app = application
     val prefs = application.getSharedPreferences("beta_diagnostics", Context.MODE_PRIVATE)
-    val initialEnabled =
-      prefs.getBoolean("enabled", BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true))
-    val launchTime = Instant.now()
     exitCutoff = prefs.getLong("exit_cutoff", System.currentTimeMillis())
     if (!prefs.contains("exit_cutoff")) prefs.edit().putLong("exit_cutoff", exitCutoff).apply()
     try {
+      // Interrupted, explicitly requested exports are transient plaintext copies. They can be
+      // removed without opening the vault or waiting for app authentication.
+      cleanupStaleArchiveFiles(application)
       store = DiagnosticStore(File(application.noBackupFilesDir, "diagnostics"))
       mutableState.value =
         DiagnosticsState(
-          isRecording = initialEnabled,
+          isRecording = false,
           sessionId = UUID.randomUUID().toString(),
           storedBytes = store!!.sizeBytes(),
         )
@@ -100,21 +105,17 @@ object DiagnosticsRecorder {
       mutableState.update {
         it.copy(
           isPreparing = false,
+          sessionId = UUID.randomUUID().toString(),
           lastError = "Cannot open local diagnostics: ${e.javaClass.simpleName}",
         )
       }
-      return
     }
     scope.launch {
       controls.withLock {
-        // Accept early launch events into the bounded queue, but freeze previous logs before
-        // writes.
-        recoverPreviousCrash(application)
         synchronized(gate) {
           ready = true
           mutableState.update { it.copy(isPreparing = false) }
         }
-        if (initialEnabled) startLogcat(launchTime)
       }
       for (wake in wakeups) {
         // Dequeue and append share the snapshot lock; no in-flight record can evade export/clear.
@@ -148,6 +149,38 @@ object DiagnosticsRecorder {
     )
   }
 
+  /** Call on IO after strong app authentication, before displaying any retained diagnostics. */
+  fun onUserUnlocked(context: Context) {
+    kotlinx.coroutines.runBlocking {
+      controls.withLock {
+        val enabled: Boolean
+        synchronized(gate) {
+          val capture = store ?: DiagnosticStore(File(context.noBackupFilesDir, "diagnostics"))
+          capture.migrateLegacyLogs()
+          EncryptedPrivateFile.migrate(
+            File(context.noBackupFilesDir, "diagnostics-previous-crash.zip"),
+            recoveryFile(context), RECOVERY_PURPOSE,
+          )
+          EncryptedPrivateFile.migrate(
+            File(context.noBackupFilesDir, "diagnostics-fatal.txt"),
+            fatalMarker(context), FATAL_PURPOSE, maxBytes = 4096,
+          )
+          store = capture
+          mutableState.update { it.copy(lastError = null) }
+          if (!privateStorageUnlocked) recoverPreviousCrash(context)
+          privateStorageUnlocked = true
+          ready = true
+          enabled = context.getSharedPreferences("beta_diagnostics", Context.MODE_PRIVATE)
+            .getBoolean("enabled", false)
+          mutableState.update {
+            it.copy(isRecording = enabled, isPreparing = false, storedBytes = capture.sizeBytes())
+          }
+        }
+        if (enabled && process == null) startLogcat(Instant.now())
+      }
+    }
+  }
+
   /** Enqueues metadata without disk IO on the caller (including the inference/UI threads). */
   fun event(category: String, message: String) {
     synchronized(ingress) {
@@ -159,7 +192,7 @@ object DiagnosticsRecorder {
   }
 
   fun setRecording(enabled: Boolean) {
-    if (!ready) return
+    if (!ready || !privateStorageUnlocked) return
     scope.launch {
       controls.withLock {
         val captureSince = Instant.now()
@@ -236,11 +269,15 @@ object DiagnosticsRecorder {
   private fun append(category: String, text: String) {
     try {
       store?.append(category, text)
-      recent.addLast(DiagnosticRedactor.redact("[$category] $text").take(4000))
-      while (recent.size > 200) recent.removeFirst()
+      addRecent(category, text)
     } catch (e: Exception) {
       reportError("Could not write diagnostics (check free storage)", e)
     }
+  }
+
+  private fun addRecent(category: String, text: String) {
+    recent.addLast(DiagnosticRedactor.redact("[$category] $text").take(4000))
+    while (recent.size > 200) recent.removeFirst()
   }
 
   private fun reportError(message: String, error: Exception) {
@@ -349,10 +386,11 @@ object DiagnosticsRecorder {
             runCatching {
               store?.sync()
               app?.let { application ->
-                java.io.FileOutputStream(fatalMarker(application)).use { output ->
-                  output.write("${Instant.now()} ${throwable.javaClass.name}".toByteArray())
-                  output.fd.sync()
-                }
+                EncryptedPrivateFile.write(
+                  fatalMarker(application),
+                  "${Instant.now()} ${throwable.javaClass.name}".toByteArray(),
+                  FATAL_PURPOSE,
+                )
               }
             }
           }
@@ -369,9 +407,17 @@ object DiagnosticsRecorder {
 
   /** Call only under gate, before changing capture epoch, so Pause preserves accepted events. */
   private fun drainPendingRecords() {
-    repeat(1024) {
-      val record = records.tryReceive().getOrNull() ?: return
-      if (record.epoch == epoch) append(record.category, record.text)
+    val pending = ArrayList<Record>()
+    for (index in 0 until 1024) {
+      val record = records.tryReceive().getOrNull() ?: break
+      if (record.epoch == epoch) pending.add(record)
+    }
+    if (pending.isEmpty()) return
+    try {
+      store?.appendAll(pending.map { it.category to it.text })
+      pending.forEach { addRecent(it.category, it.text) }
+    } catch (e: Exception) {
+      reportError("Could not write diagnostics (check free storage)", e)
     }
   }
 
@@ -462,6 +508,7 @@ object DiagnosticsRecorder {
    */
   suspend fun createExport(context: Context, note: String): File =
     withContext(Dispatchers.IO) {
+      check(privateStorageUnlocked) { "Unlock private diagnostics before exporting" }
       exports.withLock {
         controls.withLock {
           val entries = linkedMapOf<String, ByteArray>()
@@ -480,7 +527,8 @@ object DiagnosticsRecorder {
           // A separate frozen copy protects the last crash while the tester keeps using the app.
           synchronized(gate) {
             val recovered = recoveryFile(context)
-            if (recovered.isFile) entries["previous-crash.zip"] = recovered.readBytes()
+            if (recovered.isFile) entries["previous-crash.zip"] =
+              EncryptedPrivateFile.read(recovered, RECOVERY_PURPOSE)
           }
           add("README.txt", EXPORT_README)
           add("issue-note.txt", note.take(16000))
@@ -532,10 +580,10 @@ object DiagnosticsRecorder {
     }
 
   private fun recoveryFile(context: Context) =
-    File(context.noBackupFilesDir, "diagnostics-previous-crash.zip")
+    File(context.noBackupFilesDir, "diagnostics-previous-crash.zip.enc")
 
   private fun fatalMarker(context: Context) =
-    File(context.noBackupFilesDir, "diagnostics-fatal.txt")
+    File(context.noBackupFilesDir, "diagnostics-fatal.txt.enc")
 
   /** Call only while controls excludes archive writers; process death can leave these behind. */
   private fun cleanupStaleArchiveFiles(context: Context) {
@@ -568,7 +616,7 @@ object DiagnosticsRecorder {
       val prefs = context.getSharedPreferences("beta_diagnostics", Context.MODE_PRIVATE)
       val marker = fatalMarker(context)
       val enabled =
-        prefs.getBoolean("enabled", BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true))
+        prefs.getBoolean("enabled", false)
       if (!marker.exists() && !enabled) {
         // A paused session must not replace an existing capture with new OS crash/ANR reports.
         // Advance the recovery watermark so enabling recording later cannot resurrect those exits.
@@ -603,10 +651,16 @@ object DiagnosticsRecorder {
           "README.txt",
           "Recovered on the next app launch before recording resumed. This frozen archive preserves the latest crash capture until Clear logs or another crash.\n\n$EXPORT_README",
         )
-        if (marker.exists()) add("fatal-marker.txt", marker.readText().take(4096))
+        if (marker.exists()) {
+          val bytes = EncryptedPrivateFile.read(marker, FATAL_PURPOSE, maxBytes = 4096)
+          try { add("fatal-marker.txt", bytes.toString(Charsets.UTF_8)) }
+          finally { bytes.fill(0) }
+        }
         add("device-and-app.json", deviceSnapshot(context).toString(2))
         collectExits(context, ::add)
-        DiagnosticArchive.write(recoveryFile(context), entries)
+        val archive = DiagnosticArchive.encode(entries)
+        try { EncryptedPrivateFile.write(recoveryFile(context), archive, RECOVERY_PURPOSE) }
+        finally { archive.fill(0) }
         prefs
           .edit()
           .putLong("last_recovered_exit", crash?.timestamp ?: System.currentTimeMillis())
@@ -760,8 +814,9 @@ object DiagnosticsRecorder {
     issue-note.txt: the tester's reproduction notes.
     previous-crash.zip: the latest recovered crash capture, when available; kept separately from rotation.
 
-    Beta recording starts automatically and can be paused or cleared in Settings > Beta diagnostics.
-    Logs survive app restarts in private no-backup storage. The most recent 20 MiB are retained.
+    Recording is opt-in and can be paused or cleared in Settings > Beta diagnostics.
+    Logs survive app restarts as authenticated encrypted files in private no-backup storage.
+    The most recent 20 MiB of log text are retained, plus small encryption envelopes.
     After a Java/native crash or ANR reported by Android, the next launch freezes the preceding logs
     before recording resumes. One additional recovery archive (up to about 23 MiB) is kept until clear
     or the next recovered crash. Stop is never required before exporting. Sudden kills/power loss may
@@ -778,7 +833,8 @@ object DiagnosticsRecorder {
     Common credential formats are masked on a best-effort basis before storage/export. Logs and notes
     can still contain personal conversation/tool text from existing app/native logging. Review before
     sharing. Chat databases, model weights, photos, audio, credential stores, and other apps' logs are
-    not copied. Saved/shared ZIP copies remain wherever you put them after clearing in-app logs.
+    not copied. This explicitly exported ZIP is plaintext. Saved/shared ZIP copies remain wherever
+    you put them after clearing in-app logs. Anyone who can open that ZIP can read its contents.
     """
       .trimIndent()
 }

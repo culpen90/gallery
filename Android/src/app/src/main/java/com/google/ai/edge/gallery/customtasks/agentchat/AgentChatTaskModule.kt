@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -19,8 +20,8 @@ package com.google.ai.edge.gallery.customtasks.agentchat
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.dataStoreFile
+import com.google.ai.edge.gallery.security.EncryptedDataStore
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.agent.AgentChatExecutor
 import com.google.ai.edge.gallery.agent.AgentRuntimeConfig
@@ -189,9 +190,6 @@ internal object AgentChatTaskModule {
   @Provides
   @Singleton
   fun provideMcpServersDataStore(@ApplicationContext context: Context): DataStore<McpServers> {
-    return DataStoreFactory.create(
-      serializer = McpServersSerializer,
-      produceFile = { context.dataStoreFile("mcp_servers.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("mcp_servers.pb"), McpServersSerializer)
   }
 }

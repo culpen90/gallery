@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -73,6 +74,7 @@ import com.google.ai.edge.gallery.data.IMPORTS_DIR
 import com.google.ai.edge.gallery.data.ModelUtils
 import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.huggingface.HuggingFaceApiClient
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.huggingface.extractHfUrlInfo
 import com.google.ai.edge.gallery.proto.ImportedModel
 import com.google.ai.edge.gallery.proto.importedModel
@@ -82,8 +84,6 @@ import com.google.ai.edge.gallery.ui.common.humanReadableSize
 import com.google.ai.edge.gallery.ui.common.isHttpOrHttps
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.CancellationException
@@ -113,6 +113,13 @@ fun ModelImportDialog(
   accessToken: String? = null,
 ) {
   val context = LocalContext.current
+  val secureUrlError = remember(uri) {
+    if (isHttpOrHttps(uri) && runCatching {
+        SecureHttp.requireHttpsUrl(getDownloadUrl(uri))
+      }.isFailure) {
+      "Remote models require HTTPS without embedded credentials"
+    } else null
+  }
   val info = remember { getFileSizeAndDisplayNameFromUri(context = context, uri = uri) }
   var fileSize by remember { mutableLongStateOf(info.first) }
   val fileName by remember { mutableStateOf(ensureValidFileName(info.second)) }
@@ -126,10 +133,10 @@ fun ModelImportDialog(
 
   // Indicates that the file size is still being fetched and we should disable the import button
   // until it's done.
-  var isFetchingSize by remember { mutableStateOf(isHttpOrHttps(uri)) }
+  var isFetchingSize by remember { mutableStateOf(isHttpOrHttps(uri) && secureUrlError == null) }
 
   LaunchedEffect(uri) {
-    if (isHttpOrHttps(uri)) {
+    if (isHttpOrHttps(uri) && secureUrlError == null) {
       isFetchingSize = true
       try {
         val downloadUrl = getDownloadUrl(uri)
@@ -144,7 +151,7 @@ fun ModelImportDialog(
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        Log.e(TAG, "Error fetching file size for $uri", e)
+        Log.e(TAG, "Error fetching file size (${e.javaClass.simpleName})")
       } finally {
         isFetchingSize = false
       }
@@ -199,6 +206,7 @@ fun ModelImportDialog(
         ) {
           // Default configs for users to set.
           ConfigEditorsPanel(configs = importConfigs, values = values)
+          secureUrlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
 
         // Button row.
@@ -212,7 +220,7 @@ fun ModelImportDialog(
           // Import button
           Button(
             // Disable the import button while fetching file size for URI.
-            enabled = !isFetchingSize,
+            enabled = !isFetchingSize && secureUrlError == null,
             onClick = {
               val downloadUrl = getDownloadUrl(uri)
               val importedModel = importedModel {
@@ -352,7 +360,12 @@ private fun importModel(
     )
     // If it's a model from the web, we don't need to copy the file over.
     if (isHttpOrHttps(uri)) {
-      Log.d(TAG, "importing web model from $uri. File name: $fileName. File size: $fileSize")
+      if (runCatching { SecureHttp.requireHttpsUrl(getDownloadUrl(uri)) }.isFailure) {
+        withContext(Dispatchers.Main) {
+          onError("Remote models require HTTPS without embedded credentials")
+        }
+        return@launch
+      }
       // Simulate a quick progress animation to show the user it's being added
       // for (i in 1..10) {
       //   kotlinx.coroutines.delay(50)
@@ -509,7 +522,7 @@ private suspend fun fetchHuggingFaceFileSize(
       }
     } catch (e: Exception) {
       if (e is CancellationException) throw e
-      Log.w(TAG, "HuggingFaceApiClient lookup failed for $urlStr", e)
+      Log.w(TAG, "HuggingFaceApiClient lookup failed (${e.javaClass.simpleName})")
     }
   }
   return 0L
@@ -517,18 +530,12 @@ private suspend fun fetchHuggingFaceFileSize(
 
 /** Fetches the file size from a generic, non-Hugging-Face HTTP URL via Range GET. */
 private suspend fun fetchHttpFileSize(urlStr: String): Long {
-  val url = runCatching { URL(urlStr) }.getOrNull() ?: return 0L
   val connection =
-    runCatching { url.openConnection() as HttpURLConnection }.getOrNull() ?: return 0L
-  connection.requestMethod = "GET"
-
-  // Request only the first 1 byte (bytes=0-0) to inspect file headers without downloading the
-  // entire payload.
-  connection.setRequestProperty("Range", "bytes=0-0")
+    runCatching {
+      SecureHttp.openConnection(urlStr, headers = mapOf("Range" to "bytes=0-0"))
+    }.getOrNull() ?: return 0L
 
   try {
-    connection.connect()
-
     val isResponseOk = connection.responseCode in 200..299
     if (isResponseOk) {
       // HTTP 206 Partial Content returns "Content-Range: bytes 0-0/<total_bytes>".
@@ -547,7 +554,7 @@ private suspend fun fetchHttpFileSize(urlStr: String): Long {
     }
   } catch (e: Exception) {
     if (e is CancellationException) throw e
-    Log.w(TAG, "HTTP probe failed for $urlStr", e)
+    Log.w(TAG, "HTTPS probe failed (${e.javaClass.simpleName})")
   } finally {
     connection.disconnect()
   }

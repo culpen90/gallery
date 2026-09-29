@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -43,7 +44,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect as GeoRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.toArgb
-import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.get
 import androidx.core.graphics.set
@@ -54,6 +54,7 @@ import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.proto.Cutout
 import com.google.ai.edge.gallery.proto.FillMode
 import com.google.ai.edge.gallery.proto.Point
+import com.google.ai.edge.gallery.security.ProtectedImageSharing
 import com.google.ai.edge.gallery.proto.StrokePath as StrokePathProto
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.ByteBufferExtractor
@@ -63,7 +64,7 @@ import com.google.mediapipe.tasks.vision.interactivesegmenter.Stroke
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -278,7 +279,7 @@ constructor(
     setCutouts(cutouts = dataStoreRepository.getAllCutouts())
 
     // Create base dir for cutout collection.
-    val dir = File(context.getExternalFilesDir(null), CUTOUT_COLLECTION_BASE_DIR)
+    val dir = CutoutMediaStorage.directory(context)
     if (!dir.exists()) {
       dir.mkdir()
     }
@@ -1344,25 +1345,8 @@ constructor(
 
   fun shareBitmap(context: Context, bitmap: Bitmap, fileName: String) {
     viewModelScope.launch(Dispatchers.IO) {
-      // Ensure the images cache directory exists.
-      val cachePath = File(context.cacheDir, "images")
-      cachePath.mkdirs()
-
-      val tempFile = File(cachePath, fileName)
-
       try {
-        // Save Bitmap to a temporary file
-        FileOutputStream(tempFile).use { outputStream ->
-          bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-        }
-
-        // Get the content URI using FileProvider
-        val contentUri =
-          FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.provider" /* {applicationId}.provider */,
-            tempFile,
-          )
+        val contentUri = ProtectedImageSharing.write(context, bitmap, fileName)
 
         // Create the Intent
         val shareIntent =
@@ -1801,11 +1785,16 @@ constructor(
   private suspend fun saveBitmapToFile(bitmap: Bitmap, file: File) {
     withContext(Dispatchers.IO) {
       try {
-        FileOutputStream(file).use { outputStream ->
-          bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        val bytes = ByteArrayOutputStream().use { outputStream ->
+          if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)) {
+            throw IOException("Cutout encoding failed")
+          }
+          outputStream.toByteArray()
         }
-      } catch (e: IOException) {
-        Log.e(TAG, "Failed to save cutout bitmap to ${file.name}", e)
+        try { CutoutMediaStorage.write(context, file, bytes) }
+        finally { bytes.fill(0) }
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to save private cutout: ${e.javaClass.simpleName}")
       }
     }
   }
@@ -1815,18 +1804,16 @@ constructor(
       val loadedBitmaps: MutableList<Bitmap?> = mutableListOf()
       for (file in files) {
         try {
-          // Use BitmapFactory to decode the file path directly into a Bitmap
           val options =
             BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
-          if (file.exists()) {
-            val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
-            loadedBitmaps.add(bitmap)
-          } else {
-            Log.w(TAG, "File not exist: ${file.absolutePath}")
-            loadedBitmaps.add(null)
+          val bytes = CutoutMediaStorage.read(context, file)
+          try {
+            loadedBitmaps.add(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options))
+          } finally {
+            bytes.fill(0)
           }
         } catch (e: Exception) {
-          Log.e(TAG, "Error loading file: '${file.absolutePath}'", e)
+          Log.e(TAG, "Failed to load private cutout: ${e.javaClass.simpleName}")
           loadedBitmaps.add(null)
         }
       }
@@ -1838,9 +1825,7 @@ constructor(
     withContext(Dispatchers.IO) {
       for (file in files) {
         try {
-          if (file.exists()) {
-            file.delete()
-          }
+          CutoutMediaStorage.delete(context, file)
         } catch (e: Exception) {
           Log.e(TAG, "Failed to delete file: ${file.absolutePath}", e)
         }
@@ -1849,16 +1834,10 @@ constructor(
   }
 
   private fun getCutoutOriginalFile(id: String): File {
-    return File(
-      context.getExternalFilesDir(null),
-      "$CUTOUT_COLLECTION_BASE_DIR${File.separator}${id}_original.png",
-    )
+    return CutoutMediaStorage.file(context, id, original = true)
   }
 
   private fun getCutoutCurrentFile(id: String): File {
-    return File(
-      context.getExternalFilesDir(null),
-      "$CUTOUT_COLLECTION_BASE_DIR${File.separator}${id}.png",
-    )
+    return CutoutMediaStorage.file(context, id, original = false)
   }
 }

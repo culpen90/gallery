@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -45,7 +46,6 @@ import com.google.gson.Gson
 import java.io.File
 import java.io.FileInputStream
 import java.net.HttpURLConnection
-import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -87,26 +87,25 @@ fun processLlmResponse(response: String): String {
 
 inline fun <reified T> getJsonResponse(url: String): JsonObjAndTextContent<T>? {
   try {
-    val connection = URL(url).openConnection() as HttpURLConnection
-    connection.requestMethod = "GET"
-    connection.connect()
-
-    val responseCode = connection.responseCode
-    if (responseCode == HttpURLConnection.HTTP_OK) {
-      val inputStream = connection.inputStream
-      val response = inputStream.bufferedReader().use { it.readText() }
-
-      val jsonObj = parseJson<T>(response)
-      return if (jsonObj != null) {
-        JsonObjAndTextContent(jsonObj = jsonObj, textContent = response)
+    val connection = SecureHttp.openConnection(url)
+    try {
+      val responseCode = connection.responseCode
+      if (responseCode == HttpURLConnection.HTTP_OK) {
+        val response = connection.inputStream.bufferedReader().use { it.readText() }
+        val jsonObj = parseJson<T>(response)
+        return if (jsonObj != null) {
+          JsonObjAndTextContent(jsonObj = jsonObj, textContent = response)
+        } else {
+          null
+        }
       } else {
-        null
+        Log.e("AGUtils", "HTTP error: $responseCode")
       }
-    } else {
-      Log.e("AGUtils", "HTTP error: $responseCode")
+    } finally {
+      connection.disconnect()
     }
   } catch (e: Exception) {
-    Log.e("AGUtils", "Error when getting or parsing json response", e)
+    Log.e("AGUtils", "Error getting JSON response (${e.javaClass.simpleName})")
   }
 
   return null

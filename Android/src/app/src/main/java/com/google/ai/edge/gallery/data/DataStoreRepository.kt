@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -183,12 +184,12 @@ class DefaultDataStoreRepository(
 
   /**
    * Reads `settings.disableFirebaseAnalytics` from proto DataStore and returns the inverted value
-   * so that `false` (default uninitialized value) evaluates to `true` (enabled).
+   * only an explicitly stored opt-in enables collection. Unset and legacy default values stay off.
    */
   override fun readFirebaseAnalytics(): Boolean {
     return runBlocking {
       val settings = dataStore.data.first()
-      !settings.disableFirebaseAnalytics
+      settings.hasDisableFirebaseAnalytics() && !settings.disableFirebaseAnalytics
     }
   }
 

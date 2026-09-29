@@ -1,7 +1,9 @@
-# Beta 4 diagnostics
+# Beta diagnostics
 
-Use **Settings → Beta diagnostics** or long-press Gallery's launcher icon and select
-**Diagnostics**. Beta builds record locally by default. The panel shows capture status,
+Authenticate and use **Settings → Beta diagnostics**, or use **Beta diagnostics** on
+Gallery's locked screen for authenticated recovery without initializing chat. The earlier
+launcher shortcut is disabled. Recording is off by default; enable it before reproducing
+a problem. The panel shows capture status,
 retained size, a live excerpt, an optional reproduction note, pause/clear controls, and a
 system document picker for saving a ZIP. Recording can continue during export.
 
@@ -15,23 +17,35 @@ separate full Android system-report workflow.
   outcome, tools, imports, and downloads without adding prompt/response bodies.
 - Foreground health sampling records memory, storage, battery, thermal and connectivity
   state. The responsiveness monitor records possible main-thread stalls, not confirmed ANRs.
-- Ten rotating UTF-8 files retain at most 20 MiB in private no-backup storage, plus one
-  separate crash archive (up to about 23 MiB). Writers close files continuously; the fatal handler drains accepted events and forces writes
+- Bounded encrypted chunks retain about 20 MiB in private no-backup storage, plus one
+  separately encrypted crash archive (up to about 23 MiB). Each write atomically replaces
+  and authenticates a whole chunk; the fatal handler drains accepted events and forces writes
   before delegating to Android's existing crash handler.
-- On relaunch, a recorded fatal marker or an Android-reported Java/native crash or ANR
+- Queued records are redacted and combined into bounded plaintext buffers in memory before
+  encrypted atomic writes. This avoids repeated hardware key operations and file syncs for
+  every line in a burst; buffers are wiped after writing. Pause/export still flush accepted events.
+- On authenticated relaunch, a recorded fatal marker or an Android-reported Java/native crash or ANR
   freezes the preceding capture into one separate recovery archive before normal writes
   resume. The exported ZIP includes that archive as `previous-crash.zip`.
-- The standalone diagnostics activity avoids chat/model initialization. It cannot recover
-  from failures that prevent the application process itself from starting.
+- The nonexported diagnostics activity requires authentication and prepares its encrypted
+  storage independently of chat/model initialization. It cannot recover from failures that
+  prevent the application process itself from starting or make its encryption key unavailable.
 - Common credential formats are masked on a best-effort basis before storage/export.
-  Existing logs and issue notes can contain personal text. Nothing is automatically uploaded. App databases,
+  Existing logs and issue notes can contain personal text. Retained capture is encrypted;
+  explicitly exported ZIPs are readable copies. Nothing is automatically uploaded. App databases,
   model binaries, images, audio and credential stores are not copied.
 
 Logcat/OS exit traces are best effort. Sudden process kills or power loss can lose final
 queued/buffered lines. Native tombstone protobuf files are not included. Capture storage
 is bounded, and old logs rotate; a full device-wide log requires Android's system report.
 
-## Validation on 2026-09-27
+## Beta 5 security validation
+
+Encryption, migration, authenticated access, and isolated real-device test results are
+recorded in [SECURITY_VERIFICATION.md](SECURITY_VERIFICATION.md). The protections and
+their limits are described in [SECURITY.md](SECURITY.md).
+
+## Historical Beta 4 validation on 2026-09-27
 
 The exact Beta 4 version (`1.0.0-beta.4`, Android version code `48`) passed these local checks:
 

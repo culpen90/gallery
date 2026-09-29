@@ -1,18 +1,18 @@
 # Capture an Android beta diagnostic report
 
-Gallery's built-in diagnostics record locally while you use the app. Beta builds start recording automatically, so you can capture a problem without setting up a computer or enabling Android Developer options.
+Gallery's built-in diagnostics record locally after you unlock the app and enable recording. Recording is off by default, and retained logs are encrypted. You can capture a problem without setting up a computer or enabling Android Developer options.
 
 ## Save the app's report to your phone
 
-1. Reproduce the problem, then open **Settings → Beta diagnostics**. You can also long-press the Gallery icon on your home screen and choose **Diagnostics**; this opens diagnostics without initializing the chat screen.
-2. Check the recording and app-log status. The live viewer shows recent events as you use the app. Recording can stay on during export; stopping it first is unnecessary.
+1. Open Gallery, authenticate, and open **Settings → Beta diagnostics**. If chat cannot open, use **Beta diagnostics** on Gallery's locked screen and authenticate to enter the independent recovery screen. The earlier launcher shortcut is disabled.
+2. Enable recording before reproducing the problem, then return to diagnostics and check the recording and app-log status. The live viewer shows recent events as you use the app. Recording can stay on during export; stopping it first is unnecessary.
 3. Add an issue note describing what you tried, what happened, what you expected, and approximately when the problem occurred. Include the model name if relevant.
-4. Tap **Save ZIP**. In Android's file picker, choose **Downloads** or another folder on your phone and save the file. You can open the saved ZIP from your phone's Files app.
+4. Tap **Save ZIP**. In Android's file picker, choose **Downloads** or another folder on your phone and save the file. The exported ZIP is a readable copy outside Gallery's encrypted storage. You can open it from your phone's Files app.
 5. Review the contents before attaching the ZIP to a bug report. Gallery does not automatically upload or send diagnostics anywhere.
 
-**If the app crashes before you can export:** reopen Gallery, then save the ZIP. Recorded logs are kept across app restarts. After a recorded fatal exception or an Android-reported crash/ANR, the next launch preserves the preceding capture in a separate `previous-crash.zip` inside the export before starting new recording. The Diagnostics launcher shortcut also works when a problem in chat prevents you from reaching Settings. Do not uninstall Gallery or clear its Android app storage before recovering the logs.
+**If the app crashes before you can export:** reopen Gallery, authenticate, then save the ZIP. Encrypted recorded logs are kept across app restarts. After a recorded fatal exception or an Android-reported crash/ANR, the next authenticated launch preserves the preceding capture in a separate `previous-crash.zip` inside the export before starting new recording. The locked screen's **Beta diagnostics** button provides authenticated recovery when a problem in chat prevents you from reaching Settings. Do not uninstall Gallery or clear its Android app storage before recovering the logs.
 
-The latest crash archive is retained separately, so ordinary use after reopening does not rotate it away. Recovery still depends on the process starting successfully and, for native crashes/ANRs, Android making an exit record available. Sudden process kills or power loss can lose final queued or buffered lines. If neither launch route works, collect the supplemental Android system report below.
+The latest crash archive is retained separately, so ordinary use after reopening does not rotate it away. Recovery still depends on the process starting successfully, authentication and key access succeeding, and, for native crashes/ANRs, Android making an exit record available. Sudden process kills or power loss can lose final queued or buffered lines. If neither launch route works, collect the supplemental Android system report below.
 
 ## What the ZIP contains
 
@@ -24,7 +24,7 @@ The latest crash archive is retained separately, so ordinary use after reopening
 - Capture status, source errors or dropped-line counts, and your issue note.
 - A separate `previous-crash.zip` when the latest crash capture was recovered.
 
-The live viewer shows only a recent excerpt; the ZIP includes the retained capture. Logs rotate at **20 MiB total**, plus **one** separately retained crash archive. Older logs rotate out; long individual records and ANR traces are capped. Very busy logging can drop queued lines, and the report records those drops. Android can restrict app-process logcat or omit crash traces; diagnostics displays source availability. Recording cannot continue while Android freezes or kills the process.
+The live viewer shows only a recent excerpt; the ZIP includes the retained capture. Logs rotate at about **20 MiB**, including a small encryption overhead, plus **one** separately retained crash archive. Older logs rotate out; long individual records and ANR traces are capped. Very busy logging can drop queued lines, and the report records those drops. Android can restrict app-process logcat or omit crash traces; diagnostics displays source availability. Recording cannot continue while Android freezes or kills the process.
 
 Common credential formats are masked on a **best-effort** basis before logs are stored or exported. Existing app or native logs and issue notes may still contain personal conversation or tool text. The exporter does not copy chat databases, model weights, photos, audio recordings, credential stores, or other apps' logs.
 

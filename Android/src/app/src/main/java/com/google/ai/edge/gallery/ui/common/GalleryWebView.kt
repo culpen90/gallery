@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -18,15 +19,18 @@ package com.google.ai.edge.gallery.ui.common
 
 import android.Manifest
 import android.content.Context
-import android.util.Log
+import android.graphics.Bitmap
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
+import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -38,10 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
-import com.google.ai.edge.gallery.common.LOCAL_URL_BASE
-import java.io.File
+import com.google.ai.edge.gallery.common.SecureHttp
+import com.google.ai.edge.gallery.skills.PrivateSkillFiles
+import java.io.ByteArrayInputStream
 
-private const val TAG = "AGGalleryWebView"
 private val iframeWrapper =
   """
   <html>
@@ -62,30 +66,76 @@ private val iframeWrapper =
  * A base [WebViewClient] for [GalleryWebView] that handles local asset loading and logs page
  * finishing.
  */
-open class BaseGalleryWebViewClient(private val context: Context) : WebViewClient() {
+open class BaseGalleryWebViewClient(context: Context) : WebViewClient() {
+  private val privateSkillFiles = PrivateSkillFiles(context.filesDir)
+  @Volatile private var allowedPrivateSkill: String? = null
   private val localFileAssetsLoader =
     WebViewAssetLoader.Builder()
       .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
-      .addPathHandler("/", WebViewAssetLoader.InternalStoragePathHandler(context, context.filesDir))
       .build()
+
+  /** Set by app code before loading a skill; scripts cannot grant themselves another directory. */
+  fun allowPrivateSkillUrl(url: String) {
+    val uri = android.net.Uri.parse(url)
+    allowedPrivateSkill = if (
+      uri.scheme == "https" && uri.host == "appassets.androidplatform.net" &&
+        uri.pathSegments.firstOrNull() == "skills"
+    ) {
+      uri.pathSegments.getOrNull(1)?.also {
+        privateSkillFiles.importedDirectory("skills/$it")
+      }
+    } else null
+  }
+
+  override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+    if (url != null && url != "about:blank") {
+      val uri = android.net.Uri.parse(url)
+      if (uri.host != "appassets.androidplatform.net" ||
+          uri.pathSegments.take(2) != listOf("skills", allowedPrivateSkill)) {
+        allowedPrivateSkill = null
+      }
+    }
+    super.onPageStarted(view, url, favicon)
+  }
 
   override fun shouldInterceptRequest(
     view: WebView?,
     request: WebResourceRequest?,
   ): WebResourceResponse? {
-    if (request?.url != null && request.url.toString().startsWith(LOCAL_URL_BASE)) {
-      // Returns 404 if file not exist for imported skills.
-      if (!request.url.toString().startsWith("$LOCAL_URL_BASE/assets/")) {
-        val path = request.url.path ?: ""
-        val localFile = File(context.filesDir, path)
-        if (!localFile.exists() || localFile.isDirectory) {
-          return WebResourceResponse("text/plain", "UTF-8", null)
-        }
+    val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
+    if (uri.scheme != "https") return blockedResource()
+    if (uri.host == "appassets.androidplatform.net") {
+      if (runCatching { SecureHttp.requireHttpsUrl(uri.toString()) }.isFailure) return blockedResource()
+      if (uri.pathSegments.firstOrNull() == "assets") {
+        return localFileAssetsLoader.shouldInterceptRequest(uri) ?: blockedResource()
       }
-      return localFileAssetsLoader.shouldInterceptRequest(request.url)
+      val parts = uri.pathSegments
+      if (parts.size < 3 || parts[0] != "skills" || parts[1] != allowedPrivateSkill ||
+          parts.last() == "SKILL.md") return blockedResource()
+      return try {
+        var logicalFile = privateSkillFiles.importedDirectory("skills/${parts[1]}")
+        parts.drop(2).forEach { logicalFile = privateSkillFiles.child(logicalFile, it) }
+        if (!privateSkillFiles.exists(logicalFile)) return blockedResource()
+        val plaintext = privateSkillFiles.read(logicalFile)
+        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(logicalFile.extension.lowercase())
+          ?: "application/octet-stream"
+        val stream = object : ByteArrayInputStream(plaintext) {
+          override fun close() {
+            plaintext.fill(0)
+            super.close()
+          }
+        }
+        WebResourceResponse(mimeType, "UTF-8", stream)
+      } catch (_: Exception) {
+        blockedResource()
+      }
     }
     return super.shouldInterceptRequest(view, request)
   }
+
+  private fun blockedResource() = WebResourceResponse(
+    "text/plain", "UTF-8", 403, "Forbidden", emptyMap(), ByteArrayInputStream(ByteArray(0))
+  )
 }
 
 /**
@@ -144,6 +194,13 @@ fun GalleryWebView(
     modifier = modifier,
     factory = { ctx ->
       WebView(ctx).apply {
+        WebView.setWebContentsDebuggingEnabled(false)
+        val privateWebView = this
+        CookieManager.getInstance().apply {
+          setAcceptCookie(false)
+          setAcceptThirdPartyCookies(privateWebView, false)
+          removeAllCookies(null)
+        }
         layoutParams =
           ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -152,8 +209,14 @@ fun GalleryWebView(
 
         settings.apply {
           javaScriptEnabled = true
-          domStorageEnabled = true
-          allowFileAccess = true
+          domStorageEnabled = false
+          databaseEnabled = false
+          allowFileAccess = false
+          allowContentAccess = false
+          cacheMode = WebSettings.LOAD_NO_CACHE
+          mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+          safeBrowsingEnabled = true
+          saveFormData = false
           mediaPlaybackRequiresUserGesture = false
         }
 
@@ -167,10 +230,6 @@ fun GalleryWebView(
         webChromeClient =
           object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-              Log.d(
-                TAG,
-                "${consoleMessage?.message()} -- From line ${consoleMessage?.lineNumber()} of ${consoleMessage?.sourceId()}",
-              )
               onConsoleMessage?.invoke(consoleMessage)
               return super.onConsoleMessage(consoleMessage)
             }
@@ -219,6 +278,8 @@ fun GalleryWebView(
         webViewClient = curWebViewClient
 
         initialUrl?.let { url ->
+          if (runCatching { SecureHttp.requireHttpsUrl(url) }.isFailure) return@let
+          (curWebViewClient as? BaseGalleryWebViewClient)?.allowPrivateSkillUrl(url)
           if (useIframeWrapper) {
             loadDataWithBaseURL(null, iframeWrapper.replace("___", url), "text/html", "UTF-8", null)
           } else {
@@ -230,6 +291,9 @@ fun GalleryWebView(
     },
     onRelease = { webView ->
       webView.stopLoading()
+      webView.clearCache(true)
+      webView.clearHistory()
+      webView.clearFormData()
       webView.destroy()
     },
   )

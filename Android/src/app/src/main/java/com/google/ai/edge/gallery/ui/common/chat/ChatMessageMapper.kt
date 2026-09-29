@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -24,8 +25,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.google.ai.edge.gallery.proto.AudioMessageProto
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
-import java.io.File
-import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,6 +69,7 @@ object ChatMessageMapper {
   suspend fun deserializeProtoMessage(
     protoMsg: ChatMessageProto,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    context: Context? = null,
   ): ChatMessage? =
     withContext(dispatcher) {
       val side = mapChatSideProto(protoMsg.side)
@@ -98,13 +100,19 @@ object ChatMessageMapper {
           val loaded =
             protoMsg.imageFilePathsList.mapNotNull { path ->
               try {
-                val bitmap = BitmapFactory.decodeFile(path)
-                if (bitmap == null) {
-                  Log.e(TAG, "Failed to decode bitmap from $path")
+                val appContext = context ?: throw IOException("Private media context is required")
+                val (file, bytes) = ChatMediaStorage.read(appContext, path, audio = false)
+                val bitmap = try {
+                  BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } finally {
+                  bytes.fill(0)
                 }
-                bitmap?.let { it to path }
+                if (bitmap == null) {
+                  Log.e(TAG, "Failed to decode saved image")
+                }
+                bitmap?.let { it to file.absolutePath }
               } catch (e: Exception) {
-                Log.e(TAG, "Failed to decode bitmap from $path: ${e.message}", e)
+                Log.e(TAG, "Failed to restore private image: ${e.javaClass.simpleName}")
                 null
               }
             }
@@ -122,7 +130,7 @@ object ChatMessageMapper {
           } else {
             Log.e(
               TAG,
-              "Failed to deserialize IMAGE message: no valid bitmaps decoded from ${protoMsg.imageFilePathsList}",
+              "Failed to deserialize IMAGE message: no valid bitmaps decoded",
             )
             null
           }
@@ -131,20 +139,21 @@ object ChatMessageMapper {
           val firstAudio = protoMsg.audioClipsList.firstOrNull()
           if (firstAudio != null) {
             try {
+              val appContext = context ?: throw IOException("Private media context is required")
+              val (file, bytes) = ChatMediaStorage.read(appContext, firstAudio.filePath, audio = true)
               ChatMessageAudioClip(
-                audioData = File(firstAudio.filePath).readBytes(),
+                audioData = bytes,
                 sampleRate = firstAudio.sampleRate,
                 side = side,
                 latencyMs = protoMsg.latencyMs,
-                persistedPath = firstAudio.filePath,
+                persistedPath = file.absolutePath,
                 audioInputRequest =
                   restoreAudioInputRequest(protoMsg.audioInputMode, protoMsg.audioInputContext),
               )
             } catch (e: Exception) {
               Log.e(
                 TAG,
-                "Failed to deserialize audio clip from ${firstAudio.filePath}: ${e.message}",
-                e,
+                "Failed to deserialize private audio clip: ${e.javaClass.simpleName}",
               )
               null
             }
@@ -171,10 +180,11 @@ object ChatMessageMapper {
   suspend fun deserializeProtoMessages(
     protoMessages: List<ChatMessageProto>,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    context: Context? = null,
   ): List<ChatMessage> =
     withContext(dispatcher) {
       normalizeAudioInputMessages(
-        protoMessages.mapNotNull { deserializeProtoMessage(it, dispatcher) }
+        protoMessages.mapNotNull { deserializeProtoMessage(it, dispatcher, context) }
       )
     }
 
@@ -183,7 +193,7 @@ object ChatMessageMapper {
    *
    * @param msg The domain chat message to serialize.
    * @param sessionId Unique identifier for the active session (used for cache file naming).
-   * @param context Optional Android [Context] for persisting media to the local cache dir.
+   * @param context Android [Context] for persisting media as encrypted private files.
    * @param dispatcher The coroutine dispatcher for background I/O operations (defaults to
    *   [Dispatchers.IO]).
    * @return The built [ChatMessageProto], or null if unsupported.
@@ -236,20 +246,28 @@ object ChatMessageMapper {
           synchronized(msg) {
             val cachedPaths = msg.persistedPaths
             if (cachedPaths != null) {
-              builder.addAllImageFilePaths(cachedPaths)
+              val protectedPaths = if (context != null) {
+                cachedPaths.map { ChatMediaStorage.resolve(context, it, audio = false).absolutePath }
+              } else cachedPaths
+              msg.persistedPaths = protectedPaths
+              builder.addAllImageFilePaths(protectedPaths)
             } else if (context != null) {
               msg.persistedPaths = buildList {
                 msg.bitmaps.forEachIndexed { index, bitmap ->
                   val fileName = "img_${sessionId}_${now}_$index.png"
-                  val file = File(context.cacheDir, fileName)
                   try {
-                    FileOutputStream(file).use { fos ->
-                      bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                    val bytes = ByteArrayOutputStream().use { output ->
+                      if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        throw IOException("Image encoding failed")
+                      }
+                      output.toByteArray()
                     }
+                    val file = try { ChatMediaStorage.write(context, fileName, bytes) }
+                    finally { bytes.fill(0) }
                     add(file.absolutePath)
                     builder.addImageFilePaths(file.absolutePath)
                   } catch (e: Exception) {
-                    Log.e(TAG, "Failed to serialize image to ${file.absolutePath}: ${e.message}", e)
+                    Log.e(TAG, "Failed to save private image: ${e.javaClass.simpleName}")
                   }
                 }
               }
@@ -267,17 +285,20 @@ object ChatMessageMapper {
           synchronized(msg) {
             val cachedPath = msg.persistedPath
             if (cachedPath != null) {
+              val protectedPath = if (context != null) {
+                ChatMediaStorage.resolve(context, cachedPath, audio = true).absolutePath
+              } else cachedPath
+              msg.persistedPath = protectedPath
               val audioProto =
                 AudioMessageProto.newBuilder()
-                  .setFilePath(cachedPath)
+                  .setFilePath(protectedPath)
                   .setSampleRate(msg.sampleRate)
                   .build()
               builder.addAudioClips(audioProto)
             } else if (context != null) {
               val fileName = "audio_${sessionId}_$now.pcm"
-              val file = File(context.cacheDir, fileName)
               try {
-                FileOutputStream(file).use { fos -> fos.write(msg.audioData) }
+                val file = ChatMediaStorage.write(context, fileName, msg.audioData)
                 msg.persistedPath = file.absolutePath
                 val audioProto =
                   AudioMessageProto.newBuilder()
@@ -288,8 +309,7 @@ object ChatMessageMapper {
               } catch (e: Exception) {
                 Log.e(
                   TAG,
-                  "Failed to serialize audio clip to ${file.absolutePath}: ${e.message}",
-                  e,
+                  "Failed to save private audio clip: ${e.javaClass.simpleName}",
                 )
               }
             }
@@ -306,7 +326,7 @@ object ChatMessageMapper {
    *
    * @param messages List of messages to serialize.
    * @param sessionId Unique identifier for the active session.
-   * @param context Optional Android [Context] for media file caching.
+   * @param context Android [Context] for encrypted private media persistence.
    * @param dispatcher The coroutine dispatcher for background I/O operations (defaults to
    *   [Dispatchers.IO]).
    * @return List of protobuf messages.

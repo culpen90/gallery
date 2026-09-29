@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -24,6 +25,7 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.common.getJsonResponse
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.data.AllowedSkill
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.data.SkillAllowlist
@@ -34,7 +36,6 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStreamReader
-import java.net.URL
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -84,6 +85,7 @@ constructor(
   val skills: StateFlow<List<Skill>> = _skills.asStateFlow()
   var skillLoaded = false
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+  private val privateSkillFiles = PrivateSkillFiles(context.filesDir)
 
   /**
    * Loads all skills from [DataStoreRepository] and merges them with built-in asset skills.
@@ -94,6 +96,7 @@ constructor(
       // If the skills have not been loaded yet, load them from DataStore and assets and update
       // the state.
       if (!skillLoaded) {
+        privateSkillFiles.migrateAll()
         Log.d(TAG, "Loading skills index...")
 
         // 1. Load all skills from DataStore.
@@ -200,7 +203,7 @@ constructor(
     featuredSkills: List<AllowedSkill> = emptyList(),
   ): Skill {
     return withContext(Dispatchers.IO) {
-      Log.d(TAG, "Validating skill from URL: $url")
+      SecureHttp.requireHttpsUrl(url)
 
       // 1. Normalize the URL: remove trailing "/SKILL.md" or "/".
       var normalizedUrl = url
@@ -211,16 +214,19 @@ constructor(
         normalizedUrl = normalizedUrl.dropLast(1)
       }
       val skillMdUrl = "$normalizedUrl/SKILL.md"
-      Log.d(TAG, "Fetching SKILL.md from: $skillMdUrl")
 
       // 2. Read url/SKILL.md.
       val mdContent =
         try {
-          val connection = URL(skillMdUrl).openConnection()
-          InputStreamReader(connection.getInputStream()).use { reader -> reader.readText() }
+          val connection = SecureHttp.openConnection(skillMdUrl)
+          try {
+            InputStreamReader(connection.inputStream).use { reader -> reader.readText() }
+          } finally {
+            connection.disconnect()
+          }
         } catch (e: Exception) {
-          Log.e(TAG, "Error fetching SKILL.md from $skillMdUrl", e)
-          throw IOException("Failed to fetch SKILL.md: ${e.message}", e)
+          Log.e(TAG, "Error fetching SKILL.md (${e.javaClass.simpleName})")
+          throw IOException("Failed to fetch SKILL.md securely")
         }
 
       if (mdContent.isEmpty()) {
@@ -358,8 +364,15 @@ constructor(
 
       // Create the destination directory.
       if (destDir.exists()) {
-        Log.d(TAG, "Destination directory already exists, deleting: ${destDir.path}")
-        deleteSkill(name = parsedSkill.name, featuredSkills = featuredSkills)
+        val existing = _skills.value.firstOrNull { it.importDirName == newImportDirName }
+        if (existing != null && existing.name != parsedSkill.name) {
+          throw IOException("This skill directory is already in use")
+        }
+        if (existing != null) {
+          deleteSkills(setOf(existing.name), featuredSkills)
+        } else {
+          privateSkillFiles.deleteDirectory(destDir)
+        }
       }
       if (!destDir.exists()) {
         destDir.mkdirs()
@@ -381,19 +394,15 @@ constructor(
         if (source.isDirectory) {
           dest.mkdirs()
           for (child in source.listFiles()) {
-            val childDest = File(dest, child.name!!)
+            val childDest = privateSkillFiles.child(
+              dest, child.name ?: throw IOException("Imported skill file has no name")
+            )
             copyDocumentFile(child, childDest)
           }
         } else if (source.isFile) {
-          try {
-            Log.d(TAG, "Copying file ${source.name} to ${dest.path}")
-            context.contentResolver.openInputStream(source.uri)?.use { inputStream ->
-              dest.outputStream().use { outputStream -> inputStream.copyTo(outputStream) }
-            }
-          } catch (e: Exception) {
-            Log.e(TAG, "Error copying file ${source.name} to ${dest.path}", e)
-            // Log error but don't block the whole process for now.
-          }
+          val input = context.contentResolver.openInputStream(source.uri)
+            ?: throw IOException("Cannot read imported skill file")
+          input.use { privateSkillFiles.writeStream(dest, it) }
         }
       }
 
@@ -420,7 +429,7 @@ constructor(
     addToDataStore: Boolean,
     featuredSkills: List<AllowedSkill> = emptyList(),
   ) {
-    Log.d(TAG, "Adding skill: $skill")
+    Log.d(TAG, "Adding skill")
 
     // Update state.
     _skills.update { currentSkills ->
@@ -476,8 +485,8 @@ constructor(
       // Delete imported files from file system.
       if (skill.importDirName.isNotEmpty()) {
         try {
-          val skillDir = context.filesDir.resolve(skill.importDirName)
-          skillDir.deleteRecursively()
+          val skillDir = privateSkillFiles.importedDirectory(skill.importDirName)
+          privateSkillFiles.deleteDirectory(skillDir)
         } catch (e: Exception) {
           Log.w(TAG, "Failed to delete skill directory: ${skill.importDirName}", e)
         }
@@ -520,8 +529,8 @@ constructor(
       for (skill in skillsToDelete) {
         if (skill.importDirName.isNotEmpty()) {
           try {
-            val skillDir = context.filesDir.resolve(skill.importDirName)
-            skillDir.deleteRecursively()
+            val skillDir = privateSkillFiles.importedDirectory(skill.importDirName)
+            privateSkillFiles.deleteDirectory(skillDir)
           } catch (e: Exception) {
             Log.w(TAG, "Failed to delete skill directory: ${skill.importDirName}", e)
           }
@@ -658,8 +667,12 @@ constructor(
           throw IllegalArgumentException("A skill with the name '${name}' already exists.")
         }
 
-        val normalizedName = name.replace("\\s+".toRegex(), "-")
-        val skillDestDir = context.filesDir.resolve("skills/${normalizedName}")
+        val skillDestDir = privateSkillFiles.destinationDirectory(name)
+        val normalizedName = skillDestDir.name
+        if (currentSkills.any { it.name == normalizedName ||
+            it.importDirName == skillDestDir.relativeTo(context.filesDir).path }) {
+          throw IllegalArgumentException("A skill with this name or directory already exists")
+        }
         val scriptDestDir = File(skillDestDir, "scripts")
         // If the directory exists from a previous failed attempt, clear it.
         if (skillDestDir.exists()) {
@@ -667,7 +680,7 @@ constructor(
             TAG,
             "Skill destination directory already exists for new skill: ${skillDestDir.path}, deleting.",
           )
-          skillDestDir.deleteRecursively()
+          privateSkillFiles.deleteDirectory(skillDestDir)
         }
 
         // Create directories
@@ -700,8 +713,8 @@ constructor(
         // Editing existing skill
         val existingSkill = currentSkills[index]
         val oldName = existingSkill.name
-        val normalizedNewName = name.replace("\\s+".toRegex(), "-")
-        val newSkillDestDir = context.filesDir.resolve("skills/${normalizedNewName}")
+        val newSkillDestDir = privateSkillFiles.destinationDirectory(name)
+        val normalizedNewName = newSkillDestDir.name
         val newScriptDestDir = File(newSkillDestDir, "scripts")
         val newSkillMdFile = File(newSkillDestDir, "SKILL.md")
 
@@ -709,7 +722,9 @@ constructor(
           throw IllegalArgumentException("Cannot edit built-in skills.")
         }
 
-        var updatedImportDirName = existingSkill.importDirName
+        val oldSkillDestDir = existingSkill.importDirName.takeIf { it.isNotEmpty() }
+          ?.let { privateSkillFiles.importedDirectory(it) }
+        val updatedImportDirName = newSkillDestDir.relativeTo(context.filesDir).path
 
         if (oldName != normalizedNewName) {
           Log.d(TAG, "Renaming skill from $oldName to $normalizedNewName")
@@ -720,19 +735,14 @@ constructor(
               "A skill with the name '${normalizedNewName}' already exists."
             )
           }
+        }
 
-          val oldSkillDestDir = context.filesDir.resolve(existingSkill.importDirName)
-          if (oldSkillDestDir.exists()) {
-            Log.d(TAG, "Renaming directory from ${oldSkillDestDir.path} to ${newSkillDestDir.path}")
-            if (!oldSkillDestDir.renameTo(newSkillDestDir)) {
-              throw IOException(
-                "Failed to rename skill directory from ${oldSkillDestDir.name} to ${newSkillDestDir.name}."
-              )
-            }
-            updatedImportDirName = newSkillDestDir.relativeTo(context.filesDir).path
+        if (oldSkillDestDir != newSkillDestDir) {
+          if (oldSkillDestDir?.exists() == true) {
+            privateSkillFiles.copyDirectory(oldSkillDestDir, newSkillDestDir)
+          } else if (newSkillDestDir.exists()) {
+            throw IOException("Private skill destination already exists")
           } else {
-            Log.w(TAG, "Old skill directory not found: ${oldSkillDestDir.path}")
-            // If the old directory doesn't exist, create the new one.
             newSkillDestDir.mkdirs()
           }
         }
@@ -741,7 +751,7 @@ constructor(
         writeSkillMd(newSkillMdFile, normalizedNewName, description, instructions)
 
         // Update scripts: Clear existing scripts and save new ones.
-        newScriptDestDir.deleteRecursively()
+        privateSkillFiles.deleteDirectory(newScriptDestDir)
         newScriptDestDir.mkdirs()
         saveScripts(newScriptDestDir, scriptsContent)
 
@@ -762,6 +772,9 @@ constructor(
 
         // Update data store
         updateSkillInDataStore(oldName, updatedSkill)
+        if (oldSkillDestDir != null && oldSkillDestDir != newSkillDestDir) {
+          privateSkillFiles.deleteDirectory(oldSkillDestDir)
+        }
         updatedSkill
       }
     }
@@ -775,7 +788,7 @@ constructor(
         return@withContext emptyMap()
       }
 
-      val skillDir = context.filesDir.resolve(skill.importDirName)
+      val skillDir = privateSkillFiles.importedDirectory(skill.importDirName)
       val scriptDir = File(skillDir, "scripts")
 
       if (!scriptDir.exists() || !scriptDir.isDirectory) {
@@ -784,15 +797,13 @@ constructor(
       }
 
       val scriptsContent = mutableMapOf<String, String>()
-      for (file in scriptDir.listFiles() ?: emptyArray()) {
-        if (file.isFile && (file.name.endsWith(".html") || file.name.endsWith(".js"))) {
+      for (file in privateSkillFiles.listFiles(scriptDir)) {
+        if (file.name.endsWith(".html") || file.name.endsWith(".js")) {
+          val plaintext = privateSkillFiles.read(file)
           try {
-            val content = file.readText()
-            scriptsContent[file.name] = content
-            Log.d(TAG, "Loaded script ${file.name} for skill ${skill.name}")
-          } catch (e: Exception) {
-            Log.e(TAG, "Error reading script file ${file.name} for skill ${skill.name}", e)
-            scriptsContent[file.name] = "" // Use empty string on error
+            scriptsContent[file.name] = plaintext.toString(Charsets.UTF_8)
+          } finally {
+            plaintext.fill(0)
           }
         }
       }
@@ -808,17 +819,13 @@ constructor(
     }
 
     coroutineScope.launch {
-      val skillDir = context.filesDir.resolve(skill.importDirName)
+      val skillDir = privateSkillFiles.importedDirectory(skill.importDirName)
       val scriptDir = File(skillDir, "scripts")
-      val scriptFile = File(scriptDir, scriptName)
+      val scriptFile = privateSkillFiles.child(scriptDir, scriptName)
 
-      if (scriptFile.exists()) {
+      if (privateSkillFiles.exists(scriptFile)) {
         try {
-          if (scriptFile.delete()) {
-            Log.d(TAG, "Successfully deleted script: ${scriptFile.path}")
-          } else {
-            Log.w(TAG, "Failed to delete script: ${scriptFile.path}")
-          }
+          privateSkillFiles.delete(scriptFile)
         } catch (e: Exception) {
           Log.e(TAG, "Error deleting script ${scriptFile.path}", e)
         }
@@ -900,9 +907,7 @@ constructor(
   }
 
   private fun getSkillDestinationDir(originalImportDirName: String): File {
-    val normalizedDirName = originalImportDirName.replace("\\s+".toRegex(), "-")
-    val newImportDirName = "skills/${normalizedDirName}"
-    return context.filesDir.resolve(newImportDirName)
+    return privateSkillFiles.destinationDirectory(originalImportDirName)
   }
 
   /**
@@ -926,7 +931,7 @@ constructor(
     $instructions
     """
         .trimIndent()
-    skillMdFile.writeText(mdContent)
+    privateSkillFiles.write(skillMdFile, mdContent.toByteArray(Charsets.UTF_8))
   }
 
   /**
@@ -934,20 +939,15 @@ constructor(
    * must be called within a [kotlinx.coroutines.Dispatchers.IO] context.
    */
   private fun saveScripts(scriptDestDir: File, scriptsContent: Map<String, String>) {
+    scriptsContent.keys.forEach { privateSkillFiles.child(scriptDestDir, it) }
     scriptDestDir.mkdirs() // Ensure directory exists
 
     // Clear existing files in the script directory
-    scriptDestDir.listFiles()?.forEach { it.delete() }
+    privateSkillFiles.listFiles(scriptDestDir).forEach { privateSkillFiles.delete(it) }
 
     for ((scriptName, content) in scriptsContent) {
-      val scriptFile = File(scriptDestDir, scriptName)
-      Log.d(TAG, "Saving script: ${scriptFile.path}")
-      try {
-        scriptFile.writeText(content)
-        Log.d(TAG, "Saved script: ${scriptFile.path}")
-      } catch (e: Exception) {
-        Log.e(TAG, "Error saving script ${scriptName} to ${scriptFile.path}", e)
-      }
+      val scriptFile = privateSkillFiles.child(scriptDestDir, scriptName)
+      privateSkillFiles.write(scriptFile, content.toByteArray(Charsets.UTF_8))
     }
   }
 

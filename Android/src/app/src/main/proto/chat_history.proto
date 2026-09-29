@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +49,7 @@ message ChatMessageProto {
   // Whether the message generation is still in progress (e.g., for thinking
   // steps).
   bool in_progress = 8;
-  // A list of paths to local PNG image files associated with this message.
+  // Paths to encrypted private PNG files; older saves may reference legacy cache files.
   repeated string image_file_paths = 9;
   // A list of audio recordings associated with this message.
   repeated AudioMessageProto audio_clips = 10;
@@ -60,7 +61,7 @@ message ChatMessageProto {
 
 // Represents an audio recording associated with a chat session message.
 message AudioMessageProto {
-  // The file path to the local audio recording.
+  // Path to an encrypted private recording; older saves may reference a legacy cache file.
   string file_path = 1;
   // The sample rate of the audio data (e.g., 16000).
   int32 sample_rate = 2;

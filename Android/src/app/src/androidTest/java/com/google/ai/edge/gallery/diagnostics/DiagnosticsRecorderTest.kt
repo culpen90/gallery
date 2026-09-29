@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0. */
 package com.google.ai.edge.gallery.diagnostics
 
@@ -32,6 +33,7 @@ class DiagnosticsRecorderTest {
   @Before
   fun startRecording() {
     DiagnosticsRecorder.initialize(application)
+    DiagnosticsRecorder.onUserUnlocked(application)
     await("Recorder initialization") {
       !DiagnosticsRecorder.state.value.isPreparing &&
         DiagnosticsRecorder.state.value.sessionId.isNotBlank()
@@ -146,7 +148,7 @@ class DiagnosticsRecorderTest {
       state.storedBytes == 0L &&
         state.recentLines.isEmpty() &&
         File(application.noBackupFilesDir, "diagnostics").listFiles()?.none {
-          it.name.startsWith("diagnostic-") && it.extension == "log"
+          it.name.startsWith("diagnostic-") && (it.name.endsWith(".log") || it.name.endsWith(".log.enc"))
         } == true
     }
     val cleared = export()

@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -36,6 +37,7 @@ import com.google.ai.edge.litertlm.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import java.io.File
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -137,7 +139,7 @@ constructor(
       val history = session?.messagesList ?: emptyList()
 
       val litertMessages =
-        convertToLitertMessages(ChatMessageMapper.deserializeProtoMessages(history))
+        convertToLitertMessages(ChatMessageMapper.deserializeProtoMessages(history, context = context))
       DiagnosticsRecorder.event(
         "session",
         "history_loaded model=${config.model.name} found=${session != null} " +
@@ -219,8 +221,9 @@ constructor(
       DiagnosticsRecorder.event("session", "history_deleted")
       feedbackLinks.remove(sessionId)
 
-      val files = context.cacheDir.listFiles()
-      files?.forEach { file ->
+      val files = listOf(context.cacheDir, File(context.noBackupFilesDir, "chat-media"))
+        .flatMap { it.listFiles()?.toList().orEmpty() }
+      files.forEach { file ->
         if (
           file.name.startsWith("img_${sessionId}_") || file.name.startsWith("audio_${sessionId}_")
         ) {
@@ -237,8 +240,9 @@ constructor(
       DiagnosticsRecorder.event("session", "all_history_cleared")
       feedbackLinks.clear()
 
-      val files = context.cacheDir.listFiles()
-      files?.forEach { file ->
+      val files = listOf(context.cacheDir, File(context.noBackupFilesDir, "chat-media"))
+        .flatMap { it.listFiles()?.toList().orEmpty() }
+      files.forEach { file ->
         if (file.name.startsWith("img_") || file.name.startsWith("audio_")) {
           file.delete()
         }

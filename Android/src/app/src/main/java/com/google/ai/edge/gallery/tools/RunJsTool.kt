@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -58,11 +59,7 @@ class RunJsTool(
   ): Map<String, Any> = recordToolCall("runJs") {
     toolExecutionDeniedResult()?.let { return@recordToolCall it }
     runBlocking(Dispatchers.Default) {
-      Log.d(
-        TAG,
-        "runJS tool called with:" +
-          "\n- skillName: ${skillName}\n- scriptName: ${scriptName}\n- data: ${data}\n",
-      )
+      Log.d(TAG, "JS tool called")
 
       val skill = skillsProvider.loadSkill(skillName)
 
@@ -117,7 +114,7 @@ class RunJsTool(
           ?: return@runBlocking mapOf(
             "result" to "JS Skill URL not set properly or skill not found"
           )
-      Log.d(TAG, "Calling JS script.\n- url: $url\n- data: $data")
+      Log.d(TAG, "Calling JS script")
 
       // Update progress.
       executionContext
@@ -167,10 +164,8 @@ class RunJsTool(
         if (webview != null) {
           Log.d(TAG, "Got an webview response.")
           val webviewUrl = skill.getJsSkillWebviewUrl(url = webview.url ?: "")
-          Log.d(TAG, "Webview url: $webviewUrl")
           resultWebviewToShow = webview.copy(url = webviewUrl)
         }
-        Log.d(TAG, "Result: ${resultJson.result}")
         mapOf("result" to (resultJson.result ?: ""), "status" to "succeeded")
       }
     }

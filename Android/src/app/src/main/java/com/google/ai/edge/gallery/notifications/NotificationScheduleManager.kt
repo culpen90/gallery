@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -20,9 +21,10 @@ import android.content.Context
 import android.util.Log
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import com.google.ai.edge.gallery.proto.ScheduledNotification
+import com.google.ai.edge.gallery.security.EncryptedDataStore
+import kotlinx.coroutines.flow.first
 import com.google.ai.edge.gallery.proto.ScheduledNotifications
 import com.google.protobuf.InvalidProtocolBufferException
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 // Manages the scheduled notifications in the agent chat skill, including loading and saving
 // notifications to the disk, and canceling/updating scheduled notifications when they are removed.
@@ -47,10 +50,7 @@ class NotificationScheduleManager
 @Inject
 constructor(@ApplicationContext private val context: Context) {
   private val dataStore: DataStore<ScheduledNotifications> =
-    DataStoreFactory.create(
-      serializer = ScheduledNotificationsSerializer,
-      produceFile = { File(context.filesDir, "scheduled_notifications.pb") },
-    )
+    EncryptedDataStore.create(context, File(context.filesDir, "scheduled_notifications.pb"), ScheduledNotificationsSerializer)
   private val TAG = "NotificationScheduleManager"
 
   // Use a coroutine scope for IO operations to avoid blocking the calling thread.
@@ -59,36 +59,15 @@ constructor(@ApplicationContext private val context: Context) {
   private val _scheduledNotifications = MutableStateFlow<List<ScheduledNotification>>(emptyList())
   val scheduledNotifications = _scheduledNotifications.asStateFlow()
 
-  init {
-    loadNotifications()
-  }
+  @Volatile private var loaded = false
 
-  fun initialize() = Unit
-
-  /** Loads the scheduled notifications from the disk. */
-  private fun loadNotifications() {
-    coroutineScope.launch {
-      try {
-        val file = File(context.filesDir, "scheduled_notifications.pb")
-        if (file.exists()) {
-          val data = file.inputStream().use { ScheduledNotificationsSerializer.readFrom(it) }
-          _scheduledNotifications.value = data.notificationList
-        }
-      } catch (e: Exception) {
-        // Ignore on read fault
-      }
-    }
-  }
-
-  /** Saves the scheduled notifications to the disk. */
-  private fun saveNotifications() {
-    coroutineScope.launch {
-      dataStore.updateData {
-        ScheduledNotifications.newBuilder()
-          .addAllNotification(_scheduledNotifications.value)
-          .build()
-      }
-    }
+  /** Called on IO only after owner authentication; failure preserves the encrypted store. */
+  @Synchronized
+  fun initialize() {
+    if (loaded) return
+    val data = runBlocking { dataStore.data.first() }
+    _scheduledNotifications.value = data.notificationList
+    loaded = true
   }
 
   /**
@@ -96,11 +75,18 @@ constructor(@ApplicationContext private val context: Context) {
    * otherwise returns false.
    */
   fun scheduleNotification(notification: ScheduledNotification): Boolean {
-    if (!setAlarmForNotification(notification)) {
+    if (!loaded || !setAlarmForNotification(notification)) {
       return false
     }
-    _scheduledNotifications.update { it + notification }
-    saveNotifications()
+    _scheduledNotifications.update { list -> list.filter { it.id != notification.id } + notification }
+    coroutineScope.launch {
+      val data = dataStore.updateData { current ->
+        current.toBuilder().clearNotification()
+          .addAllNotification(current.notificationList.filter { it.id != notification.id } + notification)
+          .build()
+      }
+      _scheduledNotifications.value = data.notificationList
+    }
     return true
   }
 
@@ -171,9 +157,8 @@ constructor(@ApplicationContext private val context: Context) {
   fun rescheduleAllNotifications() {
     coroutineScope.launch {
       try {
-        val file = File(context.filesDir, "scheduled_notifications.pb")
-        if (file.exists()) {
-          val data = file.inputStream().use { ScheduledNotificationsSerializer.readFrom(it) }
+        run {
+          val data = dataStore.data.first()
           for (notification in data.notificationList) {
             val unused = setAlarmForNotification(notification)
           }
@@ -186,6 +171,7 @@ constructor(@ApplicationContext private val context: Context) {
 
   /** Removes a notification from the schedule and cancels the alarm for the notification. */
   fun removeNotification(id: String) {
+    if (!loaded) return
     val removed = _scheduledNotifications.value.find { it.id == id }
     removed?.let {
       val pendingIntent =
@@ -205,7 +191,13 @@ constructor(@ApplicationContext private val context: Context) {
       alarmManager.cancel(pendingIntent)
     }
     _scheduledNotifications.update { list -> list.filter { it.id != id } }
-    saveNotifications()
+    coroutineScope.launch {
+      val data = dataStore.updateData { current ->
+        current.toBuilder().clearNotification()
+          .addAllNotification(current.notificationList.filter { it.id != id }).build()
+      }
+      _scheduledNotifications.value = data.notificationList
+    }
   }
 }
 

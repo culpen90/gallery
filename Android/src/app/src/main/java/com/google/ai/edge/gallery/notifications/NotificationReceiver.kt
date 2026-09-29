@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -79,6 +80,7 @@ class NotificationReceiver : BroadcastReceiver() {
       val notificationBuilder =
         NotificationCompat.Builder(context, channelId)
           .setSmallIcon(android.R.drawable.ic_dialog_info)
+          .setVisibility(NotificationCompat.VISIBILITY_SECRET)
           .setContentTitle(title)
           .setContentText(message)
           .setAutoCancel(true)

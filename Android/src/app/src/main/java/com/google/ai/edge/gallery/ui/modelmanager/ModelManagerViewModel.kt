@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -28,6 +29,7 @@ import com.google.ai.edge.gallery.common.ProjectConfig
 import com.google.ai.edge.gallery.common.SystemPromptHelper
 import com.google.ai.edge.gallery.common.getJsonResponse
 import com.google.ai.edge.gallery.common.getModelStorageDir
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.common.isAICoreSupported
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.data.Accelerator
@@ -79,7 +81,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlin.collections.sortedWith
@@ -981,14 +982,14 @@ constructor(
 
       val responseCode: Int
       try {
-        val url = URL(model.downloadInfo.url)
-        val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "HEAD"
-        connection.connect()
-
-        responseCode = connection.responseCode
+        val connection = SecureHttp.openConnection(model.downloadInfo.url, method = "HEAD")
+        try {
+          responseCode = connection.responseCode
+        } finally {
+          connection.disconnect()
+        }
       } catch (e: Exception) {
-        Log.e(TAG, "Error checking model accessibility for '${model.name}'", e)
+        Log.e(TAG, "Error checking model accessibility (${e.javaClass.simpleName})")
         return@withContext ModelAccessibility.ERROR
       }
 
@@ -1073,6 +1074,7 @@ constructor(
   fun getTokenStatusAndData(): TokenStatusAndData {
     // Try to load token data from DataStore.
     var tokenStatus = TokenStatus.NOT_STORED
+    curAccessToken = ""
     Log.d(TAG, "Reading token data from data store...")
     val tokenData = dataStoreRepository.readAccessTokenData()
 
@@ -1082,7 +1084,7 @@ constructor(
 
       // Check expiration (with 5-minute buffer).
       val curTs = System.currentTimeMillis()
-      val expirationTs = tokenData.expiresAtMs - 5 * 60
+      val expirationTs = tokenData.expiresAtMs - 5 * 60 * 1000L
       Log.d(
         TAG,
         "Checking whether token has expired or not. Current ts: $curTs, expires at: $expirationTs",
@@ -1197,6 +1199,7 @@ constructor(
   }
 
   fun clearAccessToken() {
+    curAccessToken = ""
     dataStoreRepository.clearAccessTokenData()
   }
 

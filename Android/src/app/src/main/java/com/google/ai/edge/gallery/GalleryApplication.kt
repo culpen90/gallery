@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -20,6 +21,11 @@ import android.app.Application
 import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManager
+import com.google.ai.edge.gallery.security.EncryptedDataStore
+import com.google.ai.edge.gallery.security.LegacyDownloadCleanup
+import com.google.ai.edge.gallery.security.PrivateMediaMigration
+import com.google.ai.edge.gallery.security.ProtectedImageSharing
+import com.google.ai.edge.gallery.skills.PrivateSkillFiles
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
 import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
@@ -27,6 +33,7 @@ import javax.inject.Inject
 
 @HiltAndroidApp
 class GalleryApplication : Application() {
+  private var privateSettingsInitialized = false
 
   @Inject lateinit var dataStoreRepository: DataStoreRepository
   @Inject lateinit var notificationScheduleManager: NotificationScheduleManager
@@ -34,14 +41,22 @@ class GalleryApplication : Application() {
   override fun onCreate() {
     super.onCreate()
     DiagnosticsRecorder.initialize(this)
-    // Initialize the notification schedule manager to load the scheduled notifications from the
-    // disk.
-    notificationScheduleManager.initialize()
-
-    // Load saved theme.
-    ThemeSettings.themeOverride.value = dataStoreRepository.readTheme()
-
     FirebaseApp.initializeApp(this)
+    // Encrypted settings may be unavailable while the phone is locked.
+    firebaseAnalytics?.setAnalyticsCollectionEnabled(false)
+  }
+  @Synchronized
+  fun initializePrivateSettings() {
+    if (privateSettingsInitialized) return
+    EncryptedDataStore.migrateAll(this)
+    PrivateMediaMigration.migrate(this)
+    ProtectedImageSharing.migrateLegacyCache(this)
+    PrivateSkillFiles(filesDir).migrateAll()
+    LegacyDownloadCleanup.migrate(this)
+    DiagnosticsRecorder.onUserUnlocked(this)
+    notificationScheduleManager.initialize()
+    ThemeSettings.themeOverride.value = dataStoreRepository.readTheme()
     firebaseAnalytics?.setAnalyticsCollectionEnabled(dataStoreRepository.readFirebaseAnalytics())
+    privateSettingsInitialized = true
   }
 }

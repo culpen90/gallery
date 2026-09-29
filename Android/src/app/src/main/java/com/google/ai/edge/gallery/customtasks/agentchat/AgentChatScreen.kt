@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -356,14 +357,13 @@ fun AgentChatScreen(
                     chatWebViewClient.setPageLoadListener(null)
                     continuation.resume(Unit)
                   }
-                  Log.d(TAG, "Loading url: ${action.url}")
+                  chatWebViewClient.allowPrivateSkillUrl(action.url)
                   webViewRef?.loadUrl(action.url)
                 }
 
                 // Execute JS.
                 Log.d(TAG, "Start to run js")
                 chatViewJavascriptInterface.onResultListener = { result ->
-                  Log.d(TAG, "Got result:\n$result")
                   action.result.complete(result)
                   val isSuccess = !result.contains("\"error\":")
                   val errorType = if (isSuccess) "" else "js_error"
@@ -466,11 +466,6 @@ fun AgentChatScreen(
             viewModel.addLogMessageToLastCollapsableProgressPanel(
               model = model,
               logMessage = logMessage,
-            )
-            Log.d(
-              TAG,
-              "${curConsoleMessage.message()} " +
-                "-- From line ${curConsoleMessage.lineNumber()} of ${curConsoleMessage.sourceId()}",
             )
           }
         },

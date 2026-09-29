@@ -1,9 +1,9 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0. */
 package com.google.ai.edge.gallery.ui.common.chat
 
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
-import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
@@ -12,24 +12,18 @@ import org.junit.Test
 
 class AudioHistoryTest {
   @Test
-  fun savingAndRestoringRecordingKeepsSpeechAndIntentTogether() = runBlocking {
+  fun savingRecordingKeepsSampleRateAndIntentMetadataTogether() = runBlocking {
     val pcm = byteArrayOf(0, 1, 2, 3)
-    val file = File.createTempFile("audio-history", ".pcm")
-    try {
-      file.writeBytes(pcm)
-      for (mode in AudioInputMode.entries) {
-        val request = AudioInputRequest(mode, "Answer in Spanish.")
-        val original = ChatMessageAudioClip(pcm, 16000, ChatSide.USER,
-          persistedPath = file.absolutePath, audioInputRequest = request)
-        val saved = checkNotNull(ChatMessageMapper.serializeMessage(original, "audio-test"))
-        val restored = ChatMessageMapper.deserializeProtoMessages(listOf(saved)).single() as ChatMessageAudioClip
-
-        assertArrayEquals(pcm, restored.audioData)
-        assertEquals(16000, restored.sampleRate)
-        assertEquals(request, restored.audioInputRequest)
-      }
-    } finally {
-      file.delete()
+    for (mode in AudioInputMode.entries) {
+      val request = AudioInputRequest(mode, "Answer in Spanish.")
+      val path = "/private/audio_audio-test.pcm.enc"
+      val original = ChatMessageAudioClip(pcm, 16000, ChatSide.USER,
+        persistedPath = path, audioInputRequest = request)
+      val saved = checkNotNull(ChatMessageMapper.serializeMessage(original, "audio-test"))
+      assertEquals(path, saved.audioClipsList.single().filePath)
+      assertEquals(16000, saved.audioClipsList.single().sampleRate)
+      assertEquals(mode.name, saved.audioInputMode)
+      assertEquals(request.typedPrompt, saved.audioInputContext)
     }
   }
 

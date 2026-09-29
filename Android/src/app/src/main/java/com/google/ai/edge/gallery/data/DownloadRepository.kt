@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -22,6 +23,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.util.Base64
+import com.google.ai.edge.gallery.security.PrivateDataEncryption
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -143,7 +146,7 @@ class DefaultDownloadRepository(
         )
     }
     if (model.downloadInfo.accessToken != null) {
-      inputDataBuilder.putString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN, model.downloadInfo.accessToken)
+      inputDataBuilder.putString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN_ENCRYPTED, encryptDownloadToken(model.downloadInfo.accessToken!!))
     }
     val inputData = inputDataBuilder.build()
 
@@ -151,7 +154,7 @@ class DefaultDownloadRepository(
     val downloadWorkRequest =
       OneTimeWorkRequestBuilder<DownloadWorker>()
         .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-        .setInputData(inputData)
+        .setInputData(encryptDownloadInput(inputData))
         .addTag("$MODEL_NAME_TAG:${model.name}")
         .addTag("$TASK_ID_TAG:${task?.id ?: ""}")
         .build()
@@ -199,7 +202,7 @@ class DefaultDownloadRepository(
         )
         .apply {
           if (model.downloadInfo.accessToken != null) {
-            putString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN, model.downloadInfo.accessToken)
+            putString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN_ENCRYPTED, encryptDownloadToken(model.downloadInfo.accessToken!!))
           }
         }
         .build()
@@ -207,7 +210,7 @@ class DefaultDownloadRepository(
     val downloadWorkRequest =
       OneTimeWorkRequestBuilder<DownloadWorker>()
         .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-        .setInputData(inputData)
+        .setInputData(encryptDownloadInput(inputData))
         .addTag("$MODEL_NAME_TAG:${model.name}$EXTRA_DATA_SUFFIX")
         .addTag("$TASK_ID_TAG:${task?.id ?: ""}")
         .build()
@@ -481,6 +484,7 @@ class DefaultDownloadRepository(
       NotificationCompat.Builder(context, channelId)
         // TODO: replace icon.
         .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setVisibility(NotificationCompat.VISIBILITY_SECRET)
         .setContentTitle(title)
         .setContentText(text)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -501,4 +505,21 @@ class DefaultDownloadRepository(
       notify(notificationId, builder.build())
     }
   }
+}
+
+private fun encryptDownloadToken(token: String): String {
+  val bytes = token.toByteArray(Charsets.UTF_8)
+  try {
+    return Base64.encodeToString(PrivateDataEncryption.encrypt(bytes, "download-access-token"), Base64.NO_WRAP)
+  } finally {
+    bytes.fill(0)
+  }
+}
+
+private fun encryptDownloadInput(data: Data): Data {
+  val plaintext = data.toByteArray()
+  try {
+    return Data.Builder().putByteArray(KEY_MODEL_DOWNLOAD_INPUT_ENCRYPTED,
+      PrivateDataEncryption.encrypt(plaintext, "workmanager-download-input")).build()
+  } finally { plaintext.fill(0) }
 }

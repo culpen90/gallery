@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -17,7 +18,7 @@
 package com.google.ai.edge.gallery.huggingface
 
 import android.util.Log
-import androidx.core.net.toUri
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.data.ModelAccessibility
 import com.google.ai.edge.gallery.di.IoDispatcher
 import com.google.ai.edge.gallery.proto.HfModelItemProto
@@ -28,7 +29,6 @@ import com.google.ai.edge.gallery.proto.hfSiblingProto
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -181,10 +181,13 @@ constructor(@IoDispatcher private val ioDispatcher: CoroutineDispatcher) {
         try {
           val connection =
             openHttpConnection(urlString = modelUrl, method = "HEAD", accessToken = accessToken)
-          connection.connect()
-          connection.responseCode
+          try {
+            connection.responseCode
+          } finally {
+            connection.disconnect()
+          }
         } catch (e: Exception) {
-          Log.e(TAG, "Failed to probe model accessibility for URL: $modelUrl", e)
+          Log.e(TAG, "Failed to probe model accessibility (${e.javaClass.simpleName})")
           return@withContext ModelAccessibility.ERROR
         }
 
@@ -212,33 +215,31 @@ constructor(@IoDispatcher private val ioDispatcher: CoroutineDispatcher) {
     urlString: String,
     method: String = "GET",
     accessToken: String? = null,
-  ): HttpURLConnection {
-    val url = URL(urlString)
-    val connection = url.openConnection() as HttpURLConnection
-    connection.requestMethod = method
-    connection.setRequestProperty("User-Agent", USER_AGENT)
-    if (!accessToken.isNullOrEmpty()) {
-      connection.setRequestProperty("Authorization", "Bearer $accessToken")
-    }
-    return connection
-  }
+  ): HttpURLConnection =
+    SecureHttp.openConnection(
+      url = urlString,
+      method = method,
+      accessToken = accessToken,
+      headers = mapOf("User-Agent" to USER_AGENT),
+    )
 
   private fun executeGetRequest(urlString: String, accessToken: String? = null): String? {
-    Log.d(TAG, "Executing HF HTTP GET request: $urlString")
     return try {
       val connection =
         openHttpConnection(urlString = urlString, method = "GET", accessToken = accessToken)
-      connection.connect()
-
-      val responseCode = connection.responseCode
-      if (responseCode == HttpURLConnection.HTTP_OK) {
-        connection.inputStream.bufferedReader().use { it.readText() }
-      } else {
-        Log.e(TAG, "HF API returned HTTP $responseCode for URL: $urlString")
-        null
+      try {
+        val responseCode = connection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+          connection.inputStream.bufferedReader().use { it.readText() }
+        } else {
+          Log.e(TAG, "HF API returned HTTP $responseCode")
+          null
+        }
+      } finally {
+        connection.disconnect()
       }
     } catch (e: Exception) {
-      Log.e(TAG, "Failed HTTP GET request to HF API for URL: $urlString", e)
+      Log.e(TAG, "Failed HTTP GET request to HF API (${e.javaClass.simpleName})")
       null
     }
   }
@@ -288,13 +289,15 @@ constructor(@IoDispatcher private val ioDispatcher: CoroutineDispatcher) {
     if (has(member) && !get(member).isJsonNull) get(member) else null
 
   companion object {
-    /** Checks if the given URL belongs to Hugging Face (host contains "huggingface.co"). */
+    /** Checks for the HTTPS Hugging Face origin that is allowed to receive a stored token. */
     fun isHuggingFaceUrl(url: String): Boolean {
       val trimmed = url.trim()
       if (trimmed.isEmpty()) return false
-      val uri = (if (trimmed.contains("://")) trimmed else "https://$trimmed").toUri()
-      val host = uri.host?.lowercase()
-      return host == "huggingface.co" || host?.endsWith(".huggingface.co") == true
+      return runCatching {
+        SecureHttp.isHuggingFaceOrigin(
+          SecureHttp.requireHttpsUrl(if (trimmed.contains("://")) trimmed else "https://$trimmed")
+        )
+      }.getOrDefault(false)
     }
   }
 }

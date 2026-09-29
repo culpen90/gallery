@@ -1,3 +1,4 @@
+<!-- Modified for the Gallery Android fork (Beta 5). -->
 <!--
  Copyright 2025 Google LLC
 
@@ -947,10 +948,10 @@
   <string name="diagnostics_paused">Recording paused</string>
   <string name="diagnostics_recording_toggle">Record beta diagnostics</string>
   <string name="diagnostics_retained_size">%1$s retained · up to 20 MiB of recent logs</string>
-  <string name="diagnostics_description">Capture app events, errors and available native logs while using Gallery. Logs may contain conversation and tool text; credential masking is best effort. Nothing uploads automatically. Media, models and the chat database are excluded.</string>
+  <string name="diagnostics_description">Capture app events, errors and available native logs while using Gallery. Retained logs are encrypted on this device. Logs may contain conversation and tool text; credential masking is best effort. Nothing uploads automatically. Media, models and the chat database are excluded.</string>
   <string name="diagnostics_native_status">Native log capture: %1$s. Availability varies by device.</string>
   <string name="diagnostics_recovered_crash">Crash logs recovered. Save ZIP includes the previous crash capture.</string>
-  <string name="diagnostics_export_while_recording">You can save a ZIP while recording continues.</string>
+  <string name="diagnostics_export_while_recording">Saving a ZIP creates a readable, unencrypted copy in your chosen location. Anyone who can open that file can read its contents. You can save while recording continues.</string>
   <string name="diagnostics_view_logs">View live logs</string>
   <string name="diagnostics_note_label">What happened? (optional)</string>
   <string name="diagnostics_note_hint">Describe the issue and how to reproduce it. Added to the ZIP.</string>

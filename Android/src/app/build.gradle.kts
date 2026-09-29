@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -36,8 +37,8 @@ android {
     applicationId = "com.google.aiedge.gallery"
     minSdk = 31
     targetSdk = 37
-    versionCode = 48
-    versionName = "1.0.0-beta.4"
+    versionCode = 49
+    versionName = "1.0.0-beta.5"
 
     // Needed for HuggingFace auth workflows.
     // Use the scheme of the "Redirect URLs" in HuggingFace app.
@@ -52,6 +53,12 @@ android {
   }
 
   buildTypes {
+    getByName("debug") {
+      // Device security tests must never clear or inspect the owner's real app data.
+      if (providers.gradleProperty("isolatedSecurityTests").orNull == "true") {
+        applicationIdSuffix = ".securitytest"
+      }
+    }
     release {
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

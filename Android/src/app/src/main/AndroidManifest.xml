@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for the Gallery Android fork (Beta 5). -->
 <!--
  Copyright 2025 Google LLC
 
@@ -33,6 +34,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <uses-permission android:name="com.google.android.apps.aicore.service.BIND_SERVICE" />
 
     <!-- Additional permission required for push notification handling -->
@@ -54,7 +57,9 @@
 
     <application
         android:name="${applicationName}"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="${appIcon}"
@@ -99,22 +104,22 @@
 
         <activity
             android:name="com.google.ai.edge.gallery.ui.diagnostics.DiagnosticsActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/diagnostics_title"
             android:theme="@style/Theme.Gallery" />
 
         <!-- Set themes for activities that are used for viewing open source licenses -->
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.Gallery.OssLicenses" />
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.Gallery.OssLicenses" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="com.google.ai.edge.gallery.security.PrivateImageProvider"
             android:authorities="${applicationId}.provider"
             android:exported="false"
             android:grantUriPermissions="true">
@@ -129,6 +134,8 @@
             android:exported="false"
             tools:node="merge">
         </service>
+
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
 
         <!-- For Firebase Analytics. -->
         <receiver

@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -459,6 +460,7 @@ open class LlmChatViewModelBase(
     supportImage: Boolean = false,
     supportAudio: Boolean = false,
     onDone: () -> Unit = {},
+    context: Context? = null,
   ) {
     currentTaskId = task.id
     sessionTransitionJob?.cancel()
@@ -468,7 +470,7 @@ open class LlmChatViewModelBase(
         stopResponse(model = model)
 
         try {
-          val messages = ChatMessageMapper.deserializeProtoMessages(session.messagesList)
+          val messages = ChatMessageMapper.deserializeProtoMessages(session.messagesList, context = context)
           ensureActive()
 
           currentSessionId = session.sessionId

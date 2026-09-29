@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -23,6 +24,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.GalleryEvent
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.mcp.McpServerState
 import com.google.ai.edge.gallery.mcp.McpServersProvider
@@ -69,7 +71,20 @@ constructor(
   private val _uiState = MutableStateFlow(McpManagerUiState())
   val uiState = _uiState.asStateFlow()
 
-  private val httpClient = HttpClient(Android) { install(SSE) }
+  private val httpClient = HttpClient(Android) {
+    install(SSE)
+    // Custom MCP authentication headers must never be forwarded to a redirect destination.
+    followRedirects = false
+    engine {
+      connectTimeout = 15_000
+      socketTimeout = 30_000
+      requestConfig = {
+        SecureHttp.requireHttpsUrl(url.toExternalForm())
+        instanceFollowRedirects = false
+        useCaches = false
+      }
+    }
+  }
 
   /**
    * Loads the persisted MCP servers from the DataStore and initializes their client connections.
@@ -108,12 +123,12 @@ constructor(
             McpServerState(mcpServer = updatedServerProto, client = client, error = null)
           } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e(TAG, "Error loading MCP server: ${serverProto.url}", e)
+            Log.e(TAG, "Error loading MCP server (${e.javaClass.simpleName})")
             // Fallback: If connection fails during startup, load the server in a disabled state.
             McpServerState(
               mcpServer = serverProto.toBuilder().setEnabled(false).build(),
               client = null,
-              error = e.message ?: "Failed to connect",
+              error = "Could not connect securely; check the HTTPS URL and credentials",
             )
           }
         }
@@ -134,7 +149,7 @@ constructor(
             .build()
         }
       } catch (e: Exception) {
-        Log.e(TAG, "Error reading saved MCP servers", e)
+        Log.e(TAG, "Error reading saved MCP servers (${e.javaClass.simpleName})")
         _uiState.update { it.copy(loadingMcpServer = false) }
       }
     }
@@ -223,10 +238,14 @@ constructor(
           },
         )
       } catch (e: Exception) {
-        Log.e(TAG, "Error adding MCP server: $url", e)
+        if (e is CancellationException) throw e
+        Log.e(TAG, "Error adding MCP server (${e.javaClass.simpleName})")
         // Fallback: Update the UI state with the error message without preserving the server.
         _uiState.update { currentState ->
-          currentState.copy(error = e.message ?: "Failed to connect", loadingMcpServer = false)
+          currentState.copy(
+            error = "Could not connect securely; check the HTTPS URL and credentials",
+            loadingMcpServer = false,
+          )
         }
         Log.d(
           TAG,
@@ -402,7 +421,7 @@ constructor(
     savedAlwaysAllowMap: Map<String, Boolean>? = null,
     mcpAuth: McpAuth? = null,
   ): Pair<Client, List<McpTool>> {
-    Log.d(TAG, "Initializing MCP for $url...")
+    SecureHttp.requireHttpsUrl(url)
     val client =
       Client(
         clientInfo =
@@ -446,7 +465,7 @@ constructor(
           .setAlwaysAllow(isAlwaysAllow)
           .build()
       }
-    Log.d(TAG, "Loaded ${mcpTools.size} tools from $url: ${mcpTools.joinToString { it.name }}")
+    Log.d(TAG, "Loaded ${mcpTools.size} MCP tools")
     return Pair(client, mcpTools)
   }
 

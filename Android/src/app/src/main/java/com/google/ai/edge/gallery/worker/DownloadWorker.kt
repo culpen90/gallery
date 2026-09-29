@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -24,6 +25,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.SystemClock
+import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -31,8 +33,11 @@ import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.google.ai.edge.gallery.common.getModelStorageDir
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.data.KEY_MODEL_COMMIT_HASH
 import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_ACCESS_TOKEN
+import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_ACCESS_TOKEN_ENCRYPTED
+import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_INPUT_ENCRYPTED
 import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_ERROR_MESSAGE
 import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_FILE_NAME
 import com.google.ai.edge.gallery.data.KEY_MODEL_DOWNLOAD_MODEL_DIR
@@ -51,13 +56,13 @@ import com.google.ai.edge.gallery.data.KEY_MODEL_UNZIPPED_DIR
 import com.google.ai.edge.gallery.data.KEY_MODEL_URL
 import com.google.ai.edge.gallery.data.TMP_FILE_EXT
 import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
+import com.google.ai.edge.gallery.security.PrivateDataEncryption
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.CancellationException
@@ -99,20 +104,62 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
   }
 
   override suspend fun doWork(): Result {
-    val isExtraDataOnly = inputData.getBoolean(KEY_MODEL_EXTRA_DATA_ONLY, false)
-    val fileUrl = inputData.getString(KEY_MODEL_URL)
-    val modelName = inputData.getString(KEY_MODEL_NAME) ?: "Model"
-    val version = inputData.getString(KEY_MODEL_COMMIT_HASH)!!
-    val fileName = inputData.getString(KEY_MODEL_DOWNLOAD_FILE_NAME)
-    val modelDir = inputData.getString(KEY_MODEL_DOWNLOAD_MODEL_DIR)!!
-    val isModelImported = inputData.getBoolean(KEY_MODEL_IS_IMPORTED, false)
-    val isZip = inputData.getBoolean(KEY_MODEL_IS_ZIP, false)
-    val unzippedDir = inputData.getString(KEY_MODEL_UNZIPPED_DIR)
-    val extraDataFileUrls = inputData.getString(KEY_MODEL_EXTRA_DATA_URLS)?.split(",") ?: listOf()
+    val privateData = try {
+      if (inputData.keyValueMap.keys != setOf(KEY_MODEL_DOWNLOAD_INPUT_ENCRYPTED)) {
+        throw IOException("Unencrypted download input is no longer accepted")
+      }
+      val envelope = inputData.getByteArray(KEY_MODEL_DOWNLOAD_INPUT_ENCRYPTED)
+        ?: throw IOException("Missing encrypted download input")
+      val plaintext = PrivateDataEncryption.decrypt(envelope, "workmanager-download-input")
+      try {
+        Data.fromByteArray(plaintext)
+      } finally {
+        plaintext.fill(0)
+      }
+    } catch (_: Exception) {
+      return Result.failure(
+        Data.Builder()
+          .putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, "Please restart this download securely")
+          .build()
+      )
+    }
+    val isExtraDataOnly = privateData.getBoolean(KEY_MODEL_EXTRA_DATA_ONLY, false)
+    val fileUrl = privateData.getString(KEY_MODEL_URL)
+    val modelName = privateData.getString(KEY_MODEL_NAME) ?: "Model"
+    val version = privateData.getString(KEY_MODEL_COMMIT_HASH)!!
+    val fileName = privateData.getString(KEY_MODEL_DOWNLOAD_FILE_NAME)
+    val modelDir = privateData.getString(KEY_MODEL_DOWNLOAD_MODEL_DIR)!!
+    val isModelImported = privateData.getBoolean(KEY_MODEL_IS_IMPORTED, false)
+    val isZip = privateData.getBoolean(KEY_MODEL_IS_ZIP, false)
+    val unzippedDir = privateData.getString(KEY_MODEL_UNZIPPED_DIR)
+    val extraDataFileUrls = privateData.getString(KEY_MODEL_EXTRA_DATA_URLS)?.split(",") ?: listOf()
     val extraDataFileNames =
-      inputData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
-    val totalBytes = inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
-    val accessToken = inputData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN)
+      privateData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
+    val totalBytes = privateData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
+    // Old queued downloads persisted bearer tokens in WorkManager's plaintext database.
+    // Never consume that legacy input; the user can start a fresh encrypted download instead.
+    if (privateData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN) != null) {
+      return Result.failure(
+        Data.Builder()
+          .putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, "Please restart this download securely")
+          .build()
+      )
+    }
+    val accessToken =
+      try {
+        privateData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN_ENCRYPTED)?.let {
+          PrivateDataEncryption.decrypt(
+              Base64.decode(it, Base64.NO_WRAP), "download-access-token"
+            )
+            .toString(Charsets.UTF_8)
+        }
+      } catch (_: Exception) {
+        return Result.failure(
+          Data.Builder()
+            .putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, "Could not unlock download credentials")
+            .build()
+        )
+      }
     val startedMs = SystemClock.elapsedRealtime()
     DiagnosticsRecorder.event(
       "download",
@@ -139,7 +186,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
               UrlAndFileName(url = extraDataFileUrls[index], fileName = extraDataFileNames[index])
             )
           }
-          Log.d(TAG, "About to download: $allFiles")
+          Log.d(TAG, "About to download ${allFiles.size} files")
 
           // Download them in sequence.
           // TODO: maybe consider downloading them in parallel.
@@ -147,14 +194,6 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
           val bytesReadSizeBuffer: MutableList<Long> = mutableListOf()
           val bytesReadLatencyBuffer: MutableList<Long> = mutableListOf()
           for (file in allFiles) {
-            val url = URL(file.url)
-
-            val connection = url.openConnection() as HttpURLConnection
-            if (accessToken != null) {
-              Log.d(TAG, "Using configured access token")
-              connection.setRequestProperty("Authorization", "Bearer $accessToken")
-            }
-
             // Prepare output file's dir.
             val outputDir =
               if (isModelImported) {
@@ -182,106 +221,114 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
                 )
               }
             val outputFileBytes = outputTmpFile.length()
+            val headers = mutableMapOf<String, String>()
             if (outputFileBytes > 0) {
               Log.d(
                 TAG,
                 "File '${outputTmpFile.name}' partial size: ${outputFileBytes}. Trying to resume download",
               )
-              connection.setRequestProperty("Range", "bytes=${outputFileBytes}-")
+              headers["Range"] = "bytes=${outputFileBytes}-"
               // Force the server to send non-compressed data to make download resuming work.
-              connection.setRequestProperty("Accept-Encoding", "identity")
+              headers["Accept-Encoding"] = "identity"
             }
-            connection.connect()
-            Log.d(TAG, "response code: ${connection.responseCode}")
-            DiagnosticsRecorder.event(
-              "download",
-              "connection model=$modelName http_status=${connection.responseCode} resume_bytes=$outputFileBytes",
-            )
+            val connection =
+              SecureHttp.openConnection(
+                url = file.url,
+                accessToken = accessToken,
+                headers = headers,
+              )
+            try {
+              Log.d(TAG, "response code: ${connection.responseCode}")
+              DiagnosticsRecorder.event(
+                "download",
+                "connection model=$modelName http_status=${connection.responseCode} resume_bytes=$outputFileBytes",
+              )
 
-            if (
-              connection.responseCode == HttpURLConnection.HTTP_OK ||
-                connection.responseCode == HttpURLConnection.HTTP_PARTIAL
-            ) {
-              val contentRange = connection.getHeaderField("Content-Range")
+              if (
+                connection.responseCode == HttpURLConnection.HTTP_OK ||
+                  connection.responseCode == HttpURLConnection.HTTP_PARTIAL
+              ) {
+                val contentRange = connection.getHeaderField("Content-Range")
 
-              if (contentRange != null) {
-                // Parse the Content-Range header
-                val rangeParts = contentRange.substringAfter("bytes ").split("/")
-                val byteRange = rangeParts[0].split("-")
-                val startByte = byteRange[0].toLong()
-                val endByte = byteRange[1].toLong()
+                if (contentRange != null) {
+                  // Parse the Content-Range header
+                  val rangeParts = contentRange.substringAfter("bytes ").split("/")
+                  val byteRange = rangeParts[0].split("-")
+                  val startByte = byteRange[0].toLong()
+                  val endByte = byteRange[1].toLong()
 
-                Log.d(
-                  TAG,
-                  "Content-Range: $contentRange. Start bytes: ${startByte}, end bytes: $endByte",
-                )
-
-                downloadedBytes += startByte
-              } else {
-                Log.d(TAG, "Download starts from beginning.")
-              }
-            } else {
-              throw IOException("HTTP error code: ${connection.responseCode}")
-            }
-
-            val inputStream = connection.inputStream
-            val outputStream = FileOutputStream(outputTmpFile, true /* append */)
-
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            var bytesRead: Int
-            var lastSetProgressTs: Long = 0
-            var deltaBytes = 0L
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-              coroutineContext.ensureActive()
-              outputStream.write(buffer, 0, bytesRead)
-              downloadedBytes += bytesRead
-              deltaBytes += bytesRead
-
-              // Report progress every 200 ms.
-              val curTs = System.currentTimeMillis()
-              if (curTs - lastSetProgressTs > 200) {
-                // Calculate download rate.
-                var bytesPerMs = 0f
-                if (lastSetProgressTs != 0L) {
-                  if (bytesReadSizeBuffer.size == 5) {
-                    bytesReadSizeBuffer.removeAt(0)
-                  }
-                  bytesReadSizeBuffer.add(deltaBytes)
-                  if (bytesReadLatencyBuffer.size == 5) {
-                    bytesReadLatencyBuffer.removeAt(0)
-                  }
-                  bytesReadLatencyBuffer.add(curTs - lastSetProgressTs)
-                  deltaBytes = 0L
-                  bytesPerMs = bytesReadSizeBuffer.sum().toFloat() / bytesReadLatencyBuffer.sum()
-                }
-
-                // Calculate remaining seconds
-                var remainingMs = 0f
-                if (bytesPerMs > 0f && totalBytes > 0L) {
-                  remainingMs = (totalBytes - downloadedBytes) / bytesPerMs
-                }
-
-                setProgress(
-                  Data.Builder()
-                    .putLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, downloadedBytes)
-                    .putLong(KEY_MODEL_DOWNLOAD_RATE, (bytesPerMs * 1000).toLong())
-                    .putLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, remainingMs.toLong())
-                    .build()
-                )
-                setForeground(
-                  createForegroundInfo(
-                    progress =
-                      if (totalBytes > 0L) (downloadedBytes * 100 / totalBytes).toInt() else 0,
-                    modelName = modelName,
+                  Log.d(
+                    TAG,
+                    "Content-Range: $contentRange. Start bytes: ${startByte}, end bytes: $endByte",
                   )
-                )
-                Log.d(TAG, "downloadedBytes: $downloadedBytes")
-                lastSetProgressTs = curTs
-              }
-            }
 
-            outputStream.close()
-            inputStream.close()
+                  downloadedBytes += startByte
+                } else {
+                  Log.d(TAG, "Download starts from beginning.")
+                }
+              } else {
+                throw IOException("HTTP error code: ${connection.responseCode}")
+              }
+
+              connection.inputStream.use { inputStream ->
+                FileOutputStream(outputTmpFile, true /* append */).use { outputStream ->
+                  val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                  var bytesRead: Int
+                  var lastSetProgressTs: Long = 0
+                  var deltaBytes = 0L
+                  while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    coroutineContext.ensureActive()
+                    outputStream.write(buffer, 0, bytesRead)
+                    downloadedBytes += bytesRead
+                    deltaBytes += bytesRead
+
+                    // Report progress every 200 ms.
+                    val curTs = System.currentTimeMillis()
+                    if (curTs - lastSetProgressTs > 200) {
+                      // Calculate download rate.
+                      var bytesPerMs = 0f
+                      if (lastSetProgressTs != 0L) {
+                        if (bytesReadSizeBuffer.size == 5) {
+                          bytesReadSizeBuffer.removeAt(0)
+                        }
+                        bytesReadSizeBuffer.add(deltaBytes)
+                        if (bytesReadLatencyBuffer.size == 5) {
+                          bytesReadLatencyBuffer.removeAt(0)
+                        }
+                        bytesReadLatencyBuffer.add(curTs - lastSetProgressTs)
+                        deltaBytes = 0L
+                        bytesPerMs = bytesReadSizeBuffer.sum().toFloat() / bytesReadLatencyBuffer.sum()
+                      }
+
+                      // Calculate remaining seconds
+                      var remainingMs = 0f
+                      if (bytesPerMs > 0f && totalBytes > 0L) {
+                        remainingMs = (totalBytes - downloadedBytes) / bytesPerMs
+                      }
+
+                      setProgress(
+                        Data.Builder()
+                          .putLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, downloadedBytes)
+                          .putLong(KEY_MODEL_DOWNLOAD_RATE, (bytesPerMs * 1000).toLong())
+                          .putLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, remainingMs.toLong())
+                          .build()
+                      )
+                      setForeground(
+                        createForegroundInfo(
+                          progress =
+                            if (totalBytes > 0L) (downloadedBytes * 100 / totalBytes).toInt() else 0,
+                          modelName = modelName,
+                        )
+                      )
+                      Log.d(TAG, "downloadedBytes: $downloadedBytes")
+                      lastSetProgressTs = curTs
+                    }
+                  }
+                }
+              }
+            } finally {
+              connection.disconnect()
+            }
 
             // Rename the tmp file to the original file name by removing the tmp file ext.
             val originalFilePath = outputTmpFile.absolutePath.replace(".$TMP_FILE_EXT", "")
@@ -384,9 +431,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
             "failed model=$modelName error_type=${e.javaClass.simpleName} " +
               "duration_ms=${SystemClock.elapsedRealtime() - startedMs}",
           )
-          Log.e(TAG, e.message, e)
+          Log.e(TAG, "Secure download failed (${e.javaClass.simpleName})")
           Result.failure(
-            Data.Builder().putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, e.message).build()
+            Data.Builder()
+              .putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, "Secure download failed; please retry")
+              .build()
           )
         } catch (e: Exception) {
           DiagnosticsRecorder.event(
@@ -433,6 +482,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
 
     val notification =
       NotificationCompat.Builder(applicationContext, FOREGROUND_NOTIFICATION_CHANNEL_ID)
+        .setVisibility(NotificationCompat.VISIBILITY_SECRET)
         .setContentTitle(title)
         .setContentText(content)
         .setSmallIcon(android.R.drawable.ic_dialog_info)

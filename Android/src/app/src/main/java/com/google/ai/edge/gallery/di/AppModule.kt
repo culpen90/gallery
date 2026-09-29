@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -18,7 +19,6 @@ package com.google.ai.edge.gallery.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStoreFile
 import com.google.ai.edge.gallery.AppLifecycleProvider
@@ -29,6 +29,7 @@ import com.google.ai.edge.gallery.GalleryLifecycleProvider
 import com.google.ai.edge.gallery.SettingsSerializer
 import com.google.ai.edge.gallery.SkillsSerializer
 import com.google.ai.edge.gallery.UserDataSerializer
+import com.google.ai.edge.gallery.security.EncryptedDataStore
 import com.google.ai.edge.gallery.data.ChatSessionRepository
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.data.DefaultChatSessionRepository
@@ -94,10 +95,7 @@ internal object AppModule {
     @ApplicationContext context: Context,
     settingsSerializer: Serializer<Settings>,
   ): DataStore<Settings> {
-    return DataStoreFactory.create(
-      serializer = settingsSerializer,
-      produceFile = { context.dataStoreFile("settings.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("settings.pb"), settingsSerializer)
   }
 
   // Provides DataStore<CutoutCollection>
@@ -107,10 +105,7 @@ internal object AppModule {
     @ApplicationContext context: Context,
     cutoutsSerializer: Serializer<CutoutCollection>,
   ): DataStore<CutoutCollection> {
-    return DataStoreFactory.create(
-      serializer = cutoutsSerializer,
-      produceFile = { context.dataStoreFile("cutouts.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("cutouts.pb"), cutoutsSerializer)
   }
 
   // Provides DataStore<UserData>
@@ -120,10 +115,7 @@ internal object AppModule {
     @ApplicationContext context: Context,
     userDataSerializer: Serializer<UserData>,
   ): DataStore<UserData> {
-    return DataStoreFactory.create(
-      serializer = userDataSerializer,
-      produceFile = { context.dataStoreFile("user_data.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("user_data.pb"), userDataSerializer)
   }
 
   // Provides DataStore<BenchmarkResults>
@@ -133,10 +125,7 @@ internal object AppModule {
     @ApplicationContext context: Context,
     benchmarkResultsSerializer: Serializer<BenchmarkResults>,
   ): DataStore<BenchmarkResults> {
-    return DataStoreFactory.create(
-      serializer = benchmarkResultsSerializer,
-      produceFile = { context.dataStoreFile("benchmark_results.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("benchmark_results.pb"), benchmarkResultsSerializer)
   }
 
   // Provides DataStore<Skills>
@@ -146,10 +135,7 @@ internal object AppModule {
     @ApplicationContext context: Context,
     skillsSerializer: Serializer<Skills>,
   ): DataStore<Skills> {
-    return DataStoreFactory.create(
-      serializer = skillsSerializer,
-      produceFile = { context.dataStoreFile("skills.pb") },
-    )
+    return EncryptedDataStore.create(context, context.dataStoreFile("skills.pb"), skillsSerializer)
   }
 
   // Provides AppLifecycleProvider

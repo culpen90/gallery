@@ -1,0 +1,42 @@
+# Gallery 1.0.0 Beta 5
+
+Beta 5 protects saved private data with authenticated encryption and requires fingerprint or device-credential authentication before opening private screens. Leaving Gallery locks those screens again. This release also tightens downloads, connected tools, imported skills, diagnostics, sharing, and backup policy. The unified conversation, automatic Agent Skills and phone controls, voice fixes, and interface from earlier betas remain included.
+
+## What changed
+
+- **Encrypted private storage:** Settings, saved conversations, credentials, custom prompts, MCP authorization headers, notification schedules, skill indexes, onboarding, benchmarks, and cutout metadata use authenticated AES-256-GCM storage. Saved chat images/audio, cutout pictures, custom skill sources/assets, diagnostic logs, and retained crash captures are also encrypted.
+- **Hardware-backed keys:** Android Keystore holds a non-exportable wrapping key. Gallery requests StrongBox, falls back to a hardware-backed trusted execution environment, and rejects software-only keys. Records use fresh random data keys and authenticated purpose labels. Android 15+ additionally requires an unlocked device for storage-key use; the foreground fingerprint/PIN gate is a separate control.
+- **Owner authentication:** Private screens require a strong biometric or device credential each time Gallery resumes after being paused. Private UI and dialogs close while locked. Screenshots, recent-app previews, third-party overlays, autofill, and content capture are restricted; scheduled-notification content is hidden on the lock screen.
+- **Verified migration:** Existing private files are migrated before the main private screen opens. Each replacement is written atomically, authenticated, and verified before its old app-owned plaintext file is deleted. A key or authentication failure preserves existing files and blocks access instead of resetting data or falling back to plaintext.
+- **HTTPS and credential handling:** Connections require HTTPS and system certificate authorities. Downloads reject insecure redirects and remove Hugging Face authorization after leaving its origin. MCP redirects are disabled so custom credentials cannot follow redirects. WorkManager download inputs are encrypted before persistence.
+- **Restricted skills:** Imported/custom skill files are encrypted. A skill WebView can load only the current skill's resources; persistent browser storage, caching, arbitrary app-private file access, and WebView debugging are disabled. Raw skill scripts, instructions, and tool content are removed from diagnostic logging.
+- **Private diagnostics and sharing:** Diagnostic capture is off by default, starts only after authentication and enabling recording, and uses encrypted storage. Queued logs are written in bounded encrypted batches so hardware key operations do not delay pause/clear controls for every line. Diagnostics recovery is reachable from the locked screen's **Beta diagnostics** button and requires authentication without loading chat. The earlier launcher shortcut is disabled. Shared images are stored encrypted and provided to explicitly granted recipients through bounded read-only pipes. Telemetry stays disabled until an explicit opt-in.
+- **Backup restrictions:** Automatic cloud backup and device transfer exclude all Gallery storage domains.
+
+See [security protections and limits](https://github.com/culpen90/gallery/blob/v1.0.0-beta.5/Android/SECURITY.md), [security verification](https://github.com/culpen90/gallery/blob/v1.0.0-beta.5/Android/SECURITY_VERIFICATION.md), and the updated [diagnostics reporting guide](https://github.com/culpen90/gallery/blob/v1.0.0-beta.5/Bug_Reporting_Guide.md).
+
+## Install and upgrade
+
+Download **gallery-1.0.0-beta.5.apk** from this release on an **Android 12 or newer** device with a secure device lock and hardware-backed Android Keystore support. Allow installation from your browser or file manager when Android asks, open Gallery, and authenticate with your fingerprint or device credential. A compatible model must be downloaded or imported separately; model weights are not included.
+
+This release-variant APK is **not debuggable**, but retains the same local Android test signing key as earlier betas for an in-place update preserving app data. It is not a production-signed or Play Store release. The package remains `com.google.aiedge.gallery`; installations signed with a different key cannot be updated with this APK. The app version is **1.0.0-beta.5**, with Android internal version code **49**. Use the attached `SHA256SUMS` to verify the download.
+
+The first authenticated upgrade can take longer while existing data is encrypted. Old model-download jobs are canceled and their stored plaintext inputs are pruned and compacted; restart interrupted downloads. Do not clear storage or uninstall to resolve a migration error: those actions can permanently lose private data. Backups and device transfer are disabled, and loss of the device's Keystore key can make saved data unrecoverable.
+
+## Privacy and security limits
+
+Encryption protects the documented saved private data, with plaintext in memory while Gallery displays it or performs inference and authorized tools. Native model files/engine caches and temporary native camera output retain the Android filesystem and application-isolation boundaries described in the security guide. The Android OS, app process, signing key, system trust store, authorized debugging computer, and intentionally installed skills remain trusted. Disable wireless debugging and revoke unused paired computers after development.
+
+Explicit diagnostic ZIP exports, pictures saved to a library, clipboard/notification infrastructure, sharing recipients, and remote services receive authorized plaintext. Review readable exports before sharing. Deleting old files cannot prove physical flash erasure, remove historical backups, or revoke credentials already copied elsewhere. Hardware and software authentication controls reduce exposure; they do not establish immunity to unknown attacks.
+
+Diagnostics retains about **20 MiB** of rolling capture, including a small encryption overhead, plus **one** recovered crash archive. Common credential masking is best effort. Android may omit app logcat or exit traces, busy logging can drop lines, and sudden process death can lose final buffered events. Capture cannot continue while Android freezes or kills the process.
+
+## Verification
+
+- **106 JVM tests passed**, including authenticated envelopes, tampering, purpose/key mismatches, plaintext rejection, migration, atomic writes, auth-session state, redirect policy, diagnostic batching/Unicode boundaries, and existing app behavior.
+- Debug, release, and isolated instrumentation APKs built successfully. Both debug and release lint completed with **0 errors and 205 warnings**.
+- **18 security instrumentation tests passed on a Samsung SM-S938U running Android 16**, using synthetic data in the separate `com.google.aiedge.gallery.securitytest` package. A Beta 5 rerun passed all 18 after the diagnostic batching fix, including the pause/clear regression. Tests cover hardware key enforcement, migration, chat media, cutouts, path restrictions, private skill isolation, sharing, and encrypted diagnostics. Test packages were removed afterward.
+- Before final Beta 5 packaging, the hardened release was installed over the existing app without clearing owner data. The owner authenticated and confirmed normal opening after migration, then confirmed authentication was required again after backgrounding. Runtime screenshot protection was present; ADB `run-as` was rejected and direct shell launch of diagnostics was blocked.
+- The final Beta 5 APK passed archive integrity, version/package metadata, APK v2 signature, 16 KiB ZIP alignment, and bundled third-party license checks. Its signing certificate matches earlier betas.
+
+These are local build and physical-device checks; no hosted CI result is claimed. The security tests do not revalidate every inference model, camera/document-picker/process-recreation path, remote service, or phone action. Saved audio remains playable but must be sent again for the model to hear it; transcription quality is model-dependent. Hugging Face OAuth remains unconfigured in this fork. Use ungated models or import compatible files obtained separately. Broader beta testing remains necessary.

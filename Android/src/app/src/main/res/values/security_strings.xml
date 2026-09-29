@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_unlock_title">Unlock Gallery</string>
+    <string name="security_unlock_subtitle">Confirm your identity to access private data.</string>
+    <string name="security_locked_message">Gallery is locked. Use a strong biometric or your phone’s screen lock to continue.</string>
+    <string name="security_unlock_retry_message">Gallery remains locked. Try again using your phone’s authentication prompt.</string>
+    <string name="security_unlock_button">Unlock</string>
+    <string name="security_preparing_message">Unlocking private storage…</string>
+    <string name="security_storage_retry_message">Unable to unlock private storage. Gallery remains locked. Try again.</string>
+    <string name="security_setup_message">Set a secure screen lock on your phone before using Gallery. Choose a strong password or PIN in Android Settings, then return here.</string>
+    <string name="security_setup_button">Set up screen lock</string>
+    <string name="security_setup_manual_message">Open Android Settings, set a secure screen lock, then return to Gallery.</string>
+</resources>

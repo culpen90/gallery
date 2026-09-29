@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -29,6 +30,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -36,8 +38,6 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
   override fun onMessageReceived(remoteMessage: RemoteMessage) {
     // TODO(developer): Handle FCM messages here.
     // Not getting messages here? See why this may be: https://goo.gl/39bRNJ
-    Log.d(TAG, "Full message: $remoteMessage")
-    Log.d(TAG, "From: ${remoteMessage.from}")
 
     // Combine data and notification payloads
     val data = remoteMessage.data
@@ -51,7 +51,6 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
     val title = data["title"] ?: notification?.title
     val body = data["body"] ?: notification?.body
 
-    Log.d(TAG, "Extracted FCM Data -> Title: $title, Body: $body, Deeplink: $deeplink")
 
     if (title != null && body != null) {
       sendNotification(title, body, imageUrl, deeplink)
@@ -103,6 +102,7 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
     val notificationBuilder =
       NotificationCompat.Builder(this, channelId)
         .setSmallIcon(R.mipmap.ic_launcher)
+        .setVisibility(NotificationCompat.VISIBILITY_SECRET)
         .setContentTitle(title ?: getString(R.string.gallery_news_notification_title))
         .setContentText(messageBody)
         .setAutoCancel(true)
@@ -112,11 +112,14 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
 
     if (imageUrl != null) {
       try {
-        val url = java.net.URL(imageUrl.toString())
-        val connection = url.openConnection()
-        connection.connectTimeout = 5000
-        connection.readTimeout = 5000
-        val bitmap = android.graphics.BitmapFactory.decodeStream(connection.getInputStream())
+        val connection = SecureHttp.openConnection(
+          imageUrl.toString(), connectTimeoutMs = 5000, readTimeoutMs = 5000
+        )
+        val bitmap = try {
+          connection.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+        } finally {
+          connection.disconnect()
+        }
         if (bitmap != null) {
           notificationBuilder.setLargeIcon(bitmap)
           notificationBuilder.setStyle(
@@ -126,7 +129,7 @@ class GalleryFcmMessagingService : FirebaseMessagingService() {
           )
         }
       } catch (e: Exception) {
-        Log.w(TAG, "Failed to download image", e)
+        Log.w(TAG, "Failed to download image (${e.javaClass.simpleName})")
       }
     }
 

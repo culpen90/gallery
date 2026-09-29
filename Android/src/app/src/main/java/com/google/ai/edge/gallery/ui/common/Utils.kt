@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -65,6 +66,7 @@ import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import java.io.File
 import java.io.FileOutputStream
+import com.google.ai.edge.gallery.security.ProtectedImageSharing
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -428,14 +430,7 @@ suspend fun Context.shareBitmap(
 ) {
   withContext(dispatcher) {
     try {
-      val cachePath = File(cacheDir, "images")
-      cachePath.mkdirs()
-      val tempFile = File(cachePath, fileName)
-      FileOutputStream(tempFile).use { outputStream ->
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-      }
-      val contentUri =
-        FileProvider.getUriForFile(this@shareBitmap, "$packageName.provider", tempFile)
+      val contentUri = ProtectedImageSharing.write(this@shareBitmap, bitmap, fileName)
       val shareIntent =
         Intent().apply {
           action = Intent.ACTION_SEND
@@ -458,17 +453,14 @@ suspend fun Context.copyBitmapToClipboard(
 ) {
   withContext(dispatcher) {
     try {
-      val cachePath = File(cacheDir, "images")
-      cachePath.mkdirs()
-      val tempFile = File(cachePath, fileName)
-      FileOutputStream(tempFile).use { outputStream ->
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-      }
-      val contentUri =
-        FileProvider.getUriForFile(this@copyBitmapToClipboard, "$packageName.provider", tempFile)
+      val contentUri = ProtectedImageSharing.write(this@copyBitmapToClipboard, bitmap, fileName)
       val clipboard =
         getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-      val clip = ClipData.newUri(contentResolver, "Image", contentUri)
+      val clip = ClipData.newUri(contentResolver, "Image", contentUri).apply {
+        description.extras = android.os.PersistableBundle().apply {
+          putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true)
+        }
+      }
       clipboard.setPrimaryClip(clip)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to copy bitmap to clipboard", e)

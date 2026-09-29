@@ -1,9 +1,8 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0. */
 package com.google.ai.edge.gallery.ui.diagnostics
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,17 +20,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
+import com.google.ai.edge.gallery.diagnostics.DiagnosticsRecorder
+import com.google.ai.edge.gallery.security.SecureActivity
 import com.google.ai.edge.gallery.ui.theme.GalleryTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 /** Recovery entry point that deliberately does not initialize the chat, models, or navigation. */
 @AndroidEntryPoint
-class DiagnosticsActivity : ComponentActivity() {
+class DiagnosticsActivity : SecureActivity() {
   private val diagnosticsViewModel: DiagnosticsViewModel by viewModels()
+
+  override fun preparePrivateAccess() {
+    // Keep recovery independent of a damaged chat/settings vault.
+    DiagnosticsRecorder.onUserUnlocked(this)
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    setContent {
+    setSecureContent {
       GalleryTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
           Column(

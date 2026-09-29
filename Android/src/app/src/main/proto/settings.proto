@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /* Copyright 2025 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,7 +80,8 @@ message Settings {
   bool is_gemma_terms_accepted = 8;
 
   repeated string viewed_promo_id = 10;
-  bool disable_firebase_analytics = 11;
+  // Presence records an explicit privacy choice. Missing consent keeps collection disabled.
+  optional bool disable_firebase_analytics = 11;
 }
 
 message McpAuth {

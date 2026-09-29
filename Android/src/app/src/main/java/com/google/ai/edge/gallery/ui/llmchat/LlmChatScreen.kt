@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2025 Google LLC
  *
@@ -330,7 +331,7 @@ fun ChatViewWrapper(
         viewModel.setIsResettingSession(true)
         sessionRestoreJob = scope.launch {
           try {
-            val messages = ChatMessageMapper.deserializeProtoMessages(session.messagesList)
+            val messages = ChatMessageMapper.deserializeProtoMessages(session.messagesList, context = context)
             ensureActive()
             viewModel.currentSessionId = session.sessionId
             viewModel.setRestoredMessages(model = selectedModel, messages = messages)
@@ -355,6 +356,7 @@ fun ChatViewWrapper(
           supportImage = showImagePicker,
           supportAudio = showAudioPicker,
           onDone = showAudioHistoryNotice,
+          context = context,
         )
       }
     },

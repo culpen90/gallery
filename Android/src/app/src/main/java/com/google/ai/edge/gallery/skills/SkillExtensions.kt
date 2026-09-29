@@ -1,3 +1,4 @@
+// Modified for the Gallery Android fork (Beta 5).
 /*
  * Copyright 2026 Google LLC
  *
@@ -17,7 +18,9 @@
 package com.google.ai.edge.gallery.skills
 
 import com.google.ai.edge.gallery.common.LOCAL_URL_BASE
+import com.google.ai.edge.gallery.common.SecureHttp
 import com.google.ai.edge.gallery.proto.Skill
+import android.net.Uri
 
 const val SKILL_INSTRUCTIONS_TEMPLATE = "---\nname: %s\ndescription: %s\n---\n\n%s"
 
@@ -35,30 +38,43 @@ fun formatSelectedSkills(skills: List<Skill>): String {
 }
 
 fun Skill.getJsSkillUrl(scriptName: String): String? {
-  var baseUrl = ""
-  // Construct a local URL for imported skill and built-in skills.
-  if (importDirName.isNotEmpty()) {
-    baseUrl = "$LOCAL_URL_BASE/$importDirName"
-  }
-  // Use skill.skillUrl if set.
-  else if (skillUrl.isNotEmpty()) {
-    baseUrl = skillUrl
-  }
-  if (baseUrl.isEmpty()) return null
-  return "$baseUrl/scripts/$scriptName"
+  val baseUrl = getSecureSkillBaseUrl() ?: return null
+  val path = encodeSkillRelativePath(scriptName) ?: return null
+  return "$baseUrl/scripts/$path"
 }
 
 fun Skill.getJsSkillWebviewUrl(url: String): String {
-  if (url.startsWith("http")) return url
-  var baseUrl = ""
-  // Construct a local URL for imported skill.
+  val baseUrl = getSecureSkillBaseUrl() ?: return ""
+  if (url.contains("://")) {
+    if (runCatching { SecureHttp.requireHttpsUrl(url) }.isFailure) return ""
+    val target = Uri.parse(url)
+    if (target.host == "appassets.androidplatform.net") {
+      val base = Uri.parse(baseUrl)
+      if (base.host != target.host ||
+          target.pathSegments.take(base.pathSegments.size) != base.pathSegments ||
+          target.pathSegments.any { it == "." || it == ".." }) return ""
+    }
+    return url
+  }
+  val path = encodeSkillRelativePath(url) ?: return ""
+  return "$baseUrl/assets/$path"
+}
+
+private fun Skill.getSecureSkillBaseUrl(): String? {
   if (importDirName.isNotEmpty()) {
-    baseUrl = "$LOCAL_URL_BASE/$importDirName"
+    val path = encodeSkillRelativePath(importDirName) ?: return null
+    if ((!builtIn && !importDirName.startsWith("skills/")) ||
+        (builtIn && !importDirName.startsWith("assets/skills/"))) return null
+    return "$LOCAL_URL_BASE/$path"
   }
-  // Use skill.skillUrl if set.
-  else if (skillUrl.isNotEmpty()) {
-    baseUrl = skillUrl
-  }
-  if (baseUrl.isEmpty()) return url
-  return "$baseUrl/assets/$url"
+  if (skillUrl.isEmpty()) return null
+  return runCatching { SecureHttp.requireHttpsUrl(skillUrl).toExternalForm().trimEnd('/') }.getOrNull()
+}
+
+private fun encodeSkillRelativePath(value: String): String? {
+  val parts = value.split('/')
+  if (parts.any { it.isBlank() || it == "." || it == ".." ||
+      it.any { char -> char == '\\' || char == '?' || char == '#' || char == ':' ||
+        char.code < 32 || char.code == 127 } }) return null
+  return parts.joinToString("/") { Uri.encode(it) }
 }

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for the Gallery Android fork (Beta 5). -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:shortcutId="beta_diagnostics"
-        android:enabled="true"
+        android:enabled="false"
         android:icon="@drawable/ic_diagnostics"
         android:shortcutShortLabel="@string/diagnostics_shortcut">
         <intent
